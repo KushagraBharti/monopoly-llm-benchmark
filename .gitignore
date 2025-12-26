@@ -1,0 +1,59 @@
+# --------------------------
+# Secrets / env
+# --------------------------
+.env
+.env.*
+!.env.example
+
+# --------------------------
+# Local run data (benchmark logs)
+# --------------------------
+runs/
+
+# --------------------------
+# Python / uv
+# --------------------------
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+
+.python-version
+
+# venvs
+.venv/
+python/.venv/
+python/**/.venv/
+
+# caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --------------------------
+# Node / Vite / Yarn
+# --------------------------
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+.vite/
+
+# Yarn modern artifacts (we're using node_modules)
+.yarn/*
+.pnp.cjs
+.pnp.loader.mjs
+
+# --------------------------
+# OS / Editor
+# --------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json

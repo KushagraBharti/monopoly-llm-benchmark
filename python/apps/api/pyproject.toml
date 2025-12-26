@@ -1,0 +1,38 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "monopoly-arena",
+    "monopoly-engine",
+    "fastapi>=0.127.0",
+    "orjson>=3.11.5",
+    "pydantic>=2.12.5",
+    "python-dotenv>=1.2.1",
+    "rich>=14.2.0",
+    "monopoly-telemetry",
+    "uvicorn[standard]>=0.40.0",
+]
+
+[tool.uv.sources]
+monopoly-engine = { workspace = true, editable = true }
+monopoly-arena = { workspace = true, editable = true }
+monopoly-telemetry = { workspace = true, editable = true }
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "ruff>=0.14.10",
+]
+lint = [
+    "ruff>=0.14.10",
+]
+test = [
+    "pytest>=9.0.2",
+]
+type = [
+    "mypy>=1.19.1",
+]
