@@ -17,6 +17,7 @@ type StoreState = {
   connection: ConnectionState
   run: RunState
   snapshot: StateSnapshot | null
+  previousSnapshot: StateSnapshot | null
   events: Event[]
   setStatus: (status: ConnectionStatus, error?: string) => void
   setSnapshot: (snapshot: StateSnapshot) => void
@@ -27,10 +28,11 @@ type StoreState = {
 
 const MAX_EVENTS = 200
 
-export const useGameStore = create<StoreState>((set, get) => ({
+export const useGameStore = create<StoreState>((set) => ({
   connection: { status: 'connecting' },
   run: {},
   snapshot: null,
+  previousSnapshot: null, // New field
   events: [],
   setStatus: (status, error) =>
     set(() => ({
@@ -40,6 +42,7 @@ export const useGameStore = create<StoreState>((set, get) => ({
     set((state) => {
       const isNewRun = state.run.runId && state.run.runId !== snapshot.run_id
       return {
+        previousSnapshot: isNewRun ? null : state.snapshot, // Track previous
         snapshot,
         run: { runId: snapshot.run_id, turnIndex: snapshot.turn_index },
         events: isNewRun ? [] : state.events,
@@ -59,6 +62,7 @@ export const useGameStore = create<StoreState>((set, get) => ({
   setRun: (runId, turnIndex) =>
     set(() => ({
       run: { runId, turnIndex },
+      previousSnapshot: null, // Clear on new run
     })),
   resetEvents: () => set(() => ({ events: [] })),
 }))

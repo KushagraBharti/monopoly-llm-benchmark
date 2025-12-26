@@ -56,7 +56,13 @@ export class WsClient {
   private reconnectTimer: number | null = null
   private shouldReconnect = true
 
-  constructor(private readonly url: string, private readonly handlers: WsHandlers) {}
+  private readonly url: string;
+  private readonly handlers: WsHandlers;
+
+  constructor(url: string, handlers: WsHandlers) {
+    this.url = url;
+    this.handlers = handlers;
+  }
 
   connect(): void {
     this.shouldReconnect = true
