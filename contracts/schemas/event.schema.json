@@ -1,0 +1,582 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "event.schema.json",
+  "title": "Event",
+  "type": "object",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "GAME_STARTED" },
+        "payload": { "type": "object", "additionalProperties": false }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "TURN_STARTED" },
+        "payload": { "type": "object", "additionalProperties": false }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "DICE_ROLLED" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["d1", "d2", "is_double"],
+          "properties": {
+            "d1": { "type": "integer", "minimum": 1, "maximum": 6 },
+            "d2": { "type": "integer", "minimum": 1, "maximum": 6 },
+            "is_double": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "PLAYER_MOVED" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from", "to", "passed_go"],
+          "properties": {
+            "from": { "type": "integer", "minimum": 0, "maximum": 39 },
+            "to": { "type": "integer", "minimum": 0, "maximum": 39 },
+            "passed_go": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "CASH_CHANGED" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["player_id", "delta", "reason"],
+          "properties": {
+            "player_id": { "type": "string" },
+            "delta": { "type": "integer" },
+            "reason": { "type": "string" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "PROPERTY_PURCHASED" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["player_id", "space_index", "price"],
+          "properties": {
+            "player_id": { "type": "string" },
+            "space_index": { "type": "integer", "minimum": 0, "maximum": 39 },
+            "price": { "type": "integer" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "RENT_PAID" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_player_id", "to_player_id", "amount", "space_index"],
+          "properties": {
+            "from_player_id": { "type": "string" },
+            "to_player_id": { "type": "string" },
+            "amount": { "type": "integer" },
+            "space_index": { "type": "integer", "minimum": 0, "maximum": 39 }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "SENT_TO_JAIL" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["player_id", "reason"],
+          "properties": {
+            "player_id": { "type": "string" },
+            "reason": { "type": "string" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "TURN_ENDED" },
+        "payload": { "type": "object", "additionalProperties": false }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "GAME_ENDED" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["winner_player_id", "reason"],
+          "properties": {
+            "winner_player_id": { "type": "string" },
+            "reason": { "type": "string" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "LLM_DECISION_REQUESTED" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["decision_id", "player_id", "decision_type"],
+          "properties": {
+            "decision_id": { "type": "string" },
+            "player_id": { "type": "string" },
+            "decision_type": { "type": "string" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "LLM_DECISION_RESPONSE" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["decision_id", "player_id", "action_name", "valid", "error"],
+          "properties": {
+            "decision_id": { "type": "string" },
+            "player_id": { "type": "string" },
+            "action_name": { "type": "string" },
+            "valid": { "type": "boolean" },
+            "error": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "LLM_PUBLIC_MESSAGE" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["player_id", "message"],
+          "properties": {
+            "player_id": { "type": "string" },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "run_id",
+        "event_id",
+        "seq",
+        "turn_index",
+        "ts_ms",
+        "actor",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "run_id": { "type": "string" },
+        "event_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "turn_index": { "type": "integer", "minimum": 0 },
+        "ts_ms": { "type": "integer", "minimum": 0 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "player_id"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["ENGINE", "PLAYER", "ARENA", "SYSTEM"] },
+            "player_id": { "type": ["string", "null"] }
+          }
+        },
+        "type": { "const": "LLM_PRIVATE_THOUGHT" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["player_id", "thought"],
+          "properties": {
+            "player_id": { "type": "string" },
+            "thought": { "type": "string" }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,489 @@
+{
+  "schema_version": "v1",
+  "run_id": "run_001",
+  "turn_index": 3,
+  "phase": "AWAITING_DECISION",
+  "active_player_id": "p1",
+  "players": [
+    {
+      "player_id": "p1",
+      "name": "Alpha",
+      "cash": 1380,
+      "position": 1,
+      "in_jail": false,
+      "jail_turns": 0,
+      "doubles_count": 0,
+      "bankrupt": false,
+      "bankrupt_to": null,
+      "get_out_of_jail_cards": 0
+    },
+    {
+      "player_id": "p2",
+      "name": "Beta",
+      "cash": 1420,
+      "position": 6,
+      "in_jail": false,
+      "jail_turns": 0,
+      "doubles_count": 0,
+      "bankrupt": false,
+      "bankrupt_to": null,
+      "get_out_of_jail_cards": 0
+    }
+  ],
+  "bank": {
+    "houses_remaining": 31,
+    "hotels_remaining": 12
+  },
+  "board": [
+    {
+      "index": 0,
+      "kind": "GO",
+      "name": "GO",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 1,
+      "kind": "PROPERTY",
+      "name": "Mediterranean Avenue",
+      "group": "BROWN",
+      "price": 60,
+      "owner_id": "p1",
+      "mortgaged": false,
+      "houses": 1,
+      "hotel": false
+    },
+    {
+      "index": 2,
+      "kind": "COMMUNITY_CHEST",
+      "name": "Community Chest",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 3,
+      "kind": "PROPERTY",
+      "name": "Baltic Avenue",
+      "group": "BROWN",
+      "price": 60,
+      "owner_id": "p1",
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 4,
+      "kind": "TAX",
+      "name": "Income Tax",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 5,
+      "kind": "RAILROAD",
+      "name": "Reading Railroad",
+      "group": null,
+      "price": 200,
+      "owner_id": "p2",
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 6,
+      "kind": "PROPERTY",
+      "name": "Oriental Avenue",
+      "group": "LIGHT_BLUE",
+      "price": 100,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 7,
+      "kind": "CHANCE",
+      "name": "Chance",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 8,
+      "kind": "PROPERTY",
+      "name": "Vermont Avenue",
+      "group": "LIGHT_BLUE",
+      "price": 100,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 9,
+      "kind": "PROPERTY",
+      "name": "Connecticut Avenue",
+      "group": "LIGHT_BLUE",
+      "price": 120,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 10,
+      "kind": "JAIL",
+      "name": "Jail / Just Visiting",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 11,
+      "kind": "PROPERTY",
+      "name": "St. Charles Place",
+      "group": "PINK",
+      "price": 140,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 12,
+      "kind": "UTILITY",
+      "name": "Electric Company",
+      "group": null,
+      "price": 150,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 13,
+      "kind": "PROPERTY",
+      "name": "States Avenue",
+      "group": "PINK",
+      "price": 140,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 14,
+      "kind": "PROPERTY",
+      "name": "Virginia Avenue",
+      "group": "PINK",
+      "price": 160,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 15,
+      "kind": "RAILROAD",
+      "name": "Pennsylvania Railroad",
+      "group": null,
+      "price": 200,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 16,
+      "kind": "PROPERTY",
+      "name": "St. James Place",
+      "group": "ORANGE",
+      "price": 180,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 17,
+      "kind": "COMMUNITY_CHEST",
+      "name": "Community Chest",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 18,
+      "kind": "PROPERTY",
+      "name": "Tennessee Avenue",
+      "group": "ORANGE",
+      "price": 180,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 19,
+      "kind": "PROPERTY",
+      "name": "New York Avenue",
+      "group": "ORANGE",
+      "price": 200,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 20,
+      "kind": "FREE_PARKING",
+      "name": "Free Parking",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 21,
+      "kind": "PROPERTY",
+      "name": "Kentucky Avenue",
+      "group": "RED",
+      "price": 220,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 22,
+      "kind": "CHANCE",
+      "name": "Chance",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 23,
+      "kind": "PROPERTY",
+      "name": "Indiana Avenue",
+      "group": "RED",
+      "price": 220,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 24,
+      "kind": "PROPERTY",
+      "name": "Illinois Avenue",
+      "group": "RED",
+      "price": 240,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 25,
+      "kind": "RAILROAD",
+      "name": "B. & O. Railroad",
+      "group": null,
+      "price": 200,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 26,
+      "kind": "PROPERTY",
+      "name": "Atlantic Avenue",
+      "group": "YELLOW",
+      "price": 260,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 27,
+      "kind": "PROPERTY",
+      "name": "Ventnor Avenue",
+      "group": "YELLOW",
+      "price": 260,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 28,
+      "kind": "UTILITY",
+      "name": "Water Works",
+      "group": null,
+      "price": 150,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 29,
+      "kind": "PROPERTY",
+      "name": "Marvin Gardens",
+      "group": "YELLOW",
+      "price": 280,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 30,
+      "kind": "GO_TO_JAIL",
+      "name": "Go To Jail",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 31,
+      "kind": "PROPERTY",
+      "name": "Pacific Avenue",
+      "group": "GREEN",
+      "price": 300,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 32,
+      "kind": "PROPERTY",
+      "name": "North Carolina Avenue",
+      "group": "GREEN",
+      "price": 300,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 33,
+      "kind": "COMMUNITY_CHEST",
+      "name": "Community Chest",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 34,
+      "kind": "PROPERTY",
+      "name": "Pennsylvania Avenue",
+      "group": "GREEN",
+      "price": 320,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 35,
+      "kind": "RAILROAD",
+      "name": "Short Line",
+      "group": null,
+      "price": 200,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 36,
+      "kind": "CHANCE",
+      "name": "Chance",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 37,
+      "kind": "PROPERTY",
+      "name": "Park Place",
+      "group": "DARK_BLUE",
+      "price": 350,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 38,
+      "kind": "TAX",
+      "name": "Luxury Tax",
+      "group": null,
+      "price": null,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    },
+    {
+      "index": 39,
+      "kind": "PROPERTY",
+      "name": "Boardwalk",
+      "group": "DARK_BLUE",
+      "price": 400,
+      "owner_id": null,
+      "mortgaged": false,
+      "houses": 0,
+      "hotel": false
+    }
+  ],
+  "derived": {
+    "net_worth_estimate_by_player": {
+      "p1": 1620,
+      "p2": 1560
+    },
+    "monopolies_by_player": {
+      "p1": ["BROWN"],
+      "p2": []
+    }
+  }
+}

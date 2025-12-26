@@ -1,0 +1,10 @@
+{
+  "schema_version": "v1",
+  "decision_id": "dec_002",
+  "action": "BUY_PROPERTY",
+  "args": {
+    "space_index": 6
+  },
+  "public_message": "Buying Oriental Avenue.",
+  "private_thought": "Secure the brown set early."
+}

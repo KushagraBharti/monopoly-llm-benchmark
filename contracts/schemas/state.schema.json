@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "state.schema.json",
+  "title": "StateSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "turn_index",
+    "phase",
+    "active_player_id",
+    "players",
+    "bank",
+    "board"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "v1"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "turn_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "START_TURN",
+        "RESOLVING_MOVE",
+        "AWAITING_DECISION",
+        "END_TURN",
+        "GAME_OVER"
+      ]
+    },
+    "active_player_id": {
+      "type": "string"
+    },
+    "players": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "player_id",
+          "name",
+          "cash",
+          "position",
+          "in_jail",
+          "jail_turns",
+          "doubles_count",
+          "bankrupt",
+          "bankrupt_to",
+          "get_out_of_jail_cards"
+        ],
+        "properties": {
+          "player_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "cash": {
+            "type": "integer"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 39
+          },
+          "in_jail": {
+            "type": "boolean"
+          },
+          "jail_turns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "doubles_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bankrupt": {
+            "type": "boolean"
+          },
+          "bankrupt_to": {
+            "type": ["string", "null"]
+          },
+          "get_out_of_jail_cards": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "bank": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["houses_remaining", "hotels_remaining"],
+      "properties": {
+        "houses_remaining": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hotels_remaining": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "board": {
+      "type": "array",
+      "minItems": 40,
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "index",
+          "kind",
+          "name",
+          "group",
+          "price",
+          "owner_id",
+          "mortgaged",
+          "houses",
+          "hotel"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 39
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "GO",
+              "PROPERTY",
+              "RAILROAD",
+              "UTILITY",
+              "TAX",
+              "CHANCE",
+              "COMMUNITY_CHEST",
+              "JAIL",
+              "GO_TO_JAIL",
+              "FREE_PARKING"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "group": {
+            "type": ["string", "null"]
+          },
+          "price": {
+            "type": ["integer", "null"]
+          },
+          "owner_id": {
+            "type": ["string", "null"]
+          },
+          "mortgaged": {
+            "type": "boolean"
+          },
+          "houses": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4
+          },
+          "hotel": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "derived": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "net_worth_estimate_by_player": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "monopolies_by_player": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "action.schema.json",
+  "title": "Action",
+  "type": "object",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "ROLL_DICE" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "BUY_PROPERTY" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["space_index"],
+          "properties": {
+            "space_index": { "type": "integer", "minimum": 0, "maximum": 39 }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "DECLINE_PROPERTY" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["space_index"],
+          "properties": {
+            "space_index": { "type": "integer", "minimum": 0, "maximum": 39 }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "START_AUCTION" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["space_index"],
+          "properties": {
+            "space_index": { "type": "integer", "minimum": 0, "maximum": 39 }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "PAY_BAIL" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "USE_JAIL_CARD" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "ROLL_FOR_DOUBLES" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "END_TURN" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "NOOP" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reason"],
+          "properties": {
+            "reason": { "type": "string" }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    }
+  ]
+}
