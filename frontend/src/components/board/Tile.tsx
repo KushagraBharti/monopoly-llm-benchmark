@@ -8,14 +8,14 @@ interface TileProps {
 }
 
 const GROUP_COLORS: Record<string, string> = {
-    Brown: "var(--color-neo-black)", // Or specific brown if needed, but neo-black is high contrast
-    LightBlue: "var(--color-neo-cyan)",
-    Pink: "var(--color-neo-pink)",
-    Orange: "#ff9f43",
-    Red: "#ff6b6b", // Map to neo-pink or red
-    Yellow: "var(--color-neo-yellow)",
-    Green: "var(--color-neo-green)",
-    Blue: "var(--color-neo-blue)",
+    Brown: "#8B4513",
+    LightBlue: "#87CEEB",
+    Pink: "#FF69B4",
+    Orange: "#FFA500",
+    Red: "#FF0000",
+    Yellow: "#FFD700",
+    Green: "#008000",
+    Blue: "#0000FF",
     Railroad: "black",
     Utility: "#a4b0be",
 };

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Event } from '../../net/contracts';
 import { useGameStore } from '../../state/store';
-import { NeoCard } from '../ui/NeoPrimitive';
+import { cn } from '../ui/NeoPrimitive';
 
 const EventItem = ({ event }: { event: Event }) => {
     // Render specific event types differently
@@ -68,14 +68,19 @@ export const EventFeed = () => {
     }, [events]);
 
     return (
-        <NeoCard className="flex flex-col h-full space-y-2">
-            <h3 className="text-xl border-b-2 border-black pb-2">Feed</h3>
+        <div className="flex flex-col h-full space-y-2">
             <div className="flex-1 overflow-y-auto pr-1 space-y-1">
-                {[...events].reverse().map((event) => (
-                    <EventItem key={event.event_id} event={event} />
+                {[...events].reverse().map((event, index) => (
+                    <div
+                        key={`${event.event_id}-${index}`}
+                        className={cn("animate-fade-in-up")}
+                        style={{ animationDelay: `${index * 50}ms` }}
+                    >
+                        <EventItem event={event} />
+                    </div>
                 ))}
                 <div ref={bottomRef} />
             </div>
-        </NeoCard>
+        </div>
     );
 };
