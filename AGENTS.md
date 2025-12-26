@@ -99,7 +99,7 @@ yarn dev
 cd python
 uv sync --all-packages
 cd apps/api
-uv run uvicorn main:app --reload
+uv run uvicorn monopoly_api.main:app --reload
 ```
 
 ## Testing

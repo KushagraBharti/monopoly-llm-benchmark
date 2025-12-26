@@ -1,5 +1,5 @@
 [project]
-name = "api"
+name = "monopoly-api"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -15,6 +15,10 @@ dependencies = [
     "monopoly-telemetry",
     "uvicorn[standard]>=0.40.0",
 ]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
 
 [tool.uv.sources]
 monopoly-engine = { workspace = true, editable = true }

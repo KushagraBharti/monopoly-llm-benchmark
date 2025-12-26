@@ -52,7 +52,7 @@ Expected: app served at `http://localhost:5173`.
 cd python
 uv sync --all-packages
 cd apps/api
-uv run uvicorn main:app --reload
+uv run uvicorn monopoly_api.main:app --reload
 ```
 Expected: API served at `http://127.0.0.1:8000`.
 
