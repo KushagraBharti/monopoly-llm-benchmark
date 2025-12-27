@@ -8,21 +8,34 @@ type ConnectionState = {
   lastError?: string
 }
 
-type RunState = {
-  runId?: string | null
-  turnIndex?: number | null
+type RunStatus = {
+  runId: string | null
+  turnIndex: number | null
+  running: boolean
+  connectedClients?: number
+  lastUpdatedAt?: number
+}
+
+type UiState = {
+  deedHighlight: number | null
+  eventHighlight: number[] | null
+  decisionHighlight: number[] | null
 }
 
 type StoreState = {
   connection: ConnectionState
-  run: RunState
+  runStatus: RunStatus
   snapshot: StateSnapshot | null
   previousSnapshot: StateSnapshot | null
   events: Event[]
+  ui: UiState
   setStatus: (status: ConnectionStatus, error?: string) => void
   setSnapshot: (snapshot: StateSnapshot) => void
   pushEvent: (event: Event) => void
-  setRun: (runId?: string | null, turnIndex?: number | null) => void
+  setRunStatus: (status: Partial<RunStatus>) => void
+  setDeedHighlight: (index: number | null) => void
+  setEventHighlight: (indices: number[] | null) => void
+  setDecisionHighlight: (indices: number[] | null) => void
   resetEvents: () => void
 }
 
@@ -30,39 +43,69 @@ const MAX_EVENTS = 200
 
 export const useGameStore = create<StoreState>((set) => ({
   connection: { status: 'connecting' },
-  run: {},
+  runStatus: {
+    runId: null,
+    turnIndex: null,
+    running: false,
+    connectedClients: 0,
+    lastUpdatedAt: undefined,
+  },
   snapshot: null,
-  previousSnapshot: null, // New field
+  previousSnapshot: null,
   events: [],
+  ui: {
+    deedHighlight: null,
+    eventHighlight: null,
+    decisionHighlight: null,
+  },
   setStatus: (status, error) =>
     set(() => ({
       connection: { status, lastError: error },
     })),
   setSnapshot: (snapshot) =>
     set((state) => {
-      const isNewRun = state.run.runId && state.run.runId !== snapshot.run_id
+      const prevRunId = state.snapshot?.run_id
+      const prevTurn = state.snapshot?.turn_index ?? null
+      const isNewRun = prevRunId !== undefined && prevRunId !== snapshot.run_id
+      const isRestart =
+        prevRunId === snapshot.run_id && prevTurn !== null && prevTurn > 0 && snapshot.turn_index === 0
+      const shouldReset = (isNewRun || isRestart) && snapshot.run_id !== 'idle'
       return {
-        previousSnapshot: isNewRun ? null : state.snapshot, // Track previous
+        previousSnapshot: shouldReset ? null : state.snapshot,
         snapshot,
-        run: { runId: snapshot.run_id, turnIndex: snapshot.turn_index },
-        events: isNewRun ? [] : state.events,
+        events: shouldReset ? [] : state.events,
       }
     }),
   pushEvent: (event) =>
     set((state) => {
-      const nextEvents = [event, ...state.events]
+      const isGameStart = event.type === 'GAME_STARTED'
+      const nextEvents = isGameStart ? [event] : [event, ...state.events]
       if (nextEvents.length > MAX_EVENTS) {
         nextEvents.pop()
       }
       return {
         events: nextEvents,
-        run: { runId: state.run.runId ?? event.run_id, turnIndex: event.turn_index },
       }
     }),
-  setRun: (runId, turnIndex) =>
-    set(() => ({
-      run: { runId, turnIndex },
-      previousSnapshot: null, // Clear on new run
+  setRunStatus: (status) =>
+    set((state) => ({
+      runStatus: {
+        ...state.runStatus,
+        ...status,
+        lastUpdatedAt: Date.now(),
+      },
+    })),
+  setDeedHighlight: (index) =>
+    set((state) => ({
+      ui: { ...state.ui, deedHighlight: index },
+    })),
+  setEventHighlight: (indices) =>
+    set((state) => ({
+      ui: { ...state.ui, eventHighlight: indices },
+    })),
+  setDecisionHighlight: (indices) =>
+    set((state) => ({
+      ui: { ...state.ui, decisionHighlight: indices },
     })),
   resetEvents: () => set(() => ({ events: [] })),
 }))

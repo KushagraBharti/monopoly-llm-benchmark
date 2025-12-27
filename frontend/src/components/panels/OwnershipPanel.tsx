@@ -1,98 +1,177 @@
+import { useMemo, useState } from 'react';
+import type { Space } from '../../net/contracts';
 import { useGameStore } from '../../state/store';
-import { getPlayerColor, getGroupColor } from '../board/constants';
-import { cn, NeoCard } from '../ui/NeoPrimitive';
+import { getGroupColor, getPlayerColor } from '../../domain/monopoly/colors';
+import { selectOwnershipGroups } from '../../domain/monopoly/selectors';
+import { NeoBadge, NeoCard, cn } from '../ui/NeoPrimitive';
+
+const formatMiniLabel = (name: string): string => {
+  const cleaned = name
+    .replace(/\b(Avenue|Street|Place|Railroad|Company|Gardens|Park|Line|Works)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const base = cleaned.length > 0 ? cleaned : name;
+  const words = base.split(' ');
+  const short = words.slice(0, 2).join(' ');
+  return short.length > 8 ? short.slice(0, 8) : short;
+};
+
+type MiniTileProps = {
+  tile: Space;
+  isSelected: boolean;
+  onSelect: () => void;
+};
+
+const MiniTile = ({ tile, isSelected, onSelect }: MiniTileProps) => {
+  const ownerColor = tile.owner_id ? getPlayerColor(tile.owner_id) : null;
+  const label = formatMiniLabel(tile.name);
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        'relative flex flex-col border-2 border-black h-14 w-11 text-[8px] text-center bg-white transition-transform hover:scale-105 cursor-pointer shadow-neo-sm',
+        isSelected && 'outline outline-2 outline-black',
+        tile.mortgaged && 'opacity-60 grayscale'
+      )}
+      title={`${tile.name}${tile.owner_id ? ` (Owned by ${tile.owner_id})` : ''}`}
+    >
+      <div
+        className="h-2 w-full border-b border-black"
+        style={{ backgroundColor: getGroupColor(tile.group) }}
+      />
+
+      <div className="flex-1 flex flex-col justify-center items-center leading-none p-0.5 relative">
+        <span className="uppercase font-bold text-[7px] leading-[1.1] break-words px-0.5">
+          {label}
+        </span>
+
+        <div className="flex gap-0.5 mt-1">
+          {tile.hotel && <div className="w-2 h-2 bg-red-600 border border-black" />}
+          {!tile.hotel &&
+            Array.from({ length: tile.houses }).map((_, i) => (
+              <div key={i} className="w-1.5 h-1.5 bg-green-500 border border-black rounded-full" />
+            ))}
+        </div>
+
+        {tile.mortgaged && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-red-600 font-bold -rotate-45 opacity-80 text-[8px]">M</span>
+          </div>
+        )}
+      </div>
+
+      {ownerColor && (
+        <div className="h-1.5 w-full border-t border-black" style={{ backgroundColor: ownerColor }} />
+      )}
+    </button>
+  );
+};
 
 export const OwnershipPanel = () => {
-    const snapshot = useGameStore((state) => state.snapshot);
-    const board = snapshot?.board || [];
+  const snapshot = useGameStore((state) => state.snapshot);
+  const deedHighlight = useGameStore((state) => state.ui.deedHighlight);
+  const setDeedHighlight = useGameStore((state) => state.setDeedHighlight);
+  const players = snapshot?.players ?? [];
+  const [filterPlayerId, setFilterPlayerId] = useState<string | null>(null);
 
-    // Use normalized group names (match backend format)
-    const propertyGroups = ["BROWN", "LIGHT_BLUE", "PINK", "ORANGE", "RED", "YELLOW", "GREEN", "DARK_BLUE"];
-    const specialGroups = ["RAILROAD", "UTILITY"];
+  const groups = useMemo(
+    () => selectOwnershipGroups(snapshot, filterPlayerId),
+    [snapshot, filterPlayerId]
+  );
 
-    // Helper to get tiles for a group (case-insensitive matching)
-    const getTiles = (groupName: string) => board.filter(t =>
-        t.group?.toUpperCase().replace(/\s+/g, '_') === groupName
-    );
+  if (!snapshot) return null;
 
-    // Mini Tile Component
-    const MiniTile = ({ tile }: { tile: any }) => {
-        const ownerColor = tile.owner_id ? getPlayerColor(tile.owner_id) : null;
+  return (
+    <NeoCard className="flex flex-col gap-2 p-2 max-h-full overflow-y-auto">
+      <div className="flex items-center justify-between border-b-2 border-black pb-1">
+        <h3 className="text-xs font-bold uppercase">Property Deeds</h3>
+        {filterPlayerId && (
+          <button
+            type="button"
+            onClick={() => setFilterPlayerId(null)}
+            className="text-[9px] font-mono underline"
+          >
+            Clear
+          </button>
+        )}
+      </div>
 
-        return (
-            <div
-                className={cn(
-                    "flex flex-col border border-black h-12 w-10 text-[8px] text-center bg-white relative transition-transform hover:scale-110 cursor-pointer",
-                    tile.mortgaged && "opacity-50 grayscale"
-                )}
-                title={`${tile.name} ${tile.owner_id ? `(Owned by ${tile.owner_id})` : ''}`}
-            >
-                {/* Header - use getGroupColor for normalized lookup */}
-                <div
-                    className="h-3 w-full border-b border-black"
-                    style={{ backgroundColor: getGroupColor(tile.group) }}
+      <div className="flex flex-wrap gap-1">
+        <button
+          type="button"
+          onClick={() => setFilterPlayerId(null)}
+          className={cn(
+            'px-2 py-0.5 text-[9px] font-bold uppercase border-2 border-black',
+            filterPlayerId === null ? 'bg-black text-white shadow-neo-sm' : 'bg-white'
+          )}
+        >
+          All
+        </button>
+        {players.map((player) => (
+          <button
+            key={player.player_id}
+            type="button"
+            onClick={() => setFilterPlayerId(player.player_id)}
+            className={cn(
+              'px-2 py-0.5 text-[9px] font-bold uppercase border-2 border-black text-white',
+              filterPlayerId === player.player_id ? 'shadow-neo-sm' : 'opacity-80'
+            )}
+            style={{ backgroundColor: getPlayerColor(player.player_id) }}
+          >
+            {player.name}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        {groups.map((group) => (
+          <div key={group.key} className="border-2 border-black bg-white p-1 shadow-neo-sm">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="flex items-center gap-1">
+                <span
+                  className="w-3 h-3 border border-black"
+                  style={{ backgroundColor: group.color }}
                 />
-
-                {/* Body */}
-                <div className="flex-1 flex flex-col justify-center items-center leading-none p-0.5 relative">
-                    <span className="truncate w-full">{tile.name.substring(0, 6)}..</span>
-
-                    {/* Visual Indicators */}
-                    <div className="flex gap-0.5 mt-1">
-                        {tile.hotel && <div className="w-1.5 h-1.5 bg-red-600 border border-black" />}
-                        {!tile.hotel && Array.from({ length: tile.houses }).map((_, i) => (
-                            <div key={i} className="w-1 h-1 bg-green-500 border border-black rounded-full" />
-                        ))}
-                    </div>
-
-                    {tile.mortgaged && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-red-600 font-bold -rotate-45 opacity-80 text-[8px]">M</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Owner Footer */}
-                {ownerColor && (
-                    <div className="h-2 w-full border-t border-black" style={{ backgroundColor: ownerColor }} />
+                <span className="text-[10px] font-bold uppercase">{group.label}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] font-mono">
+                  {(filterPlayerId ? group.ownedByPlayerCount ?? 0 : group.ownedCount)}/{group.totalCount}
+                </span>
+                {group.isComplete && group.monopolyOwnerId && (
+                  <NeoBadge
+                    variant="success"
+                    className="text-[8px]"
+                    style={{ backgroundColor: getPlayerColor(group.monopolyOwnerId), color: 'white' }}
+                  >
+                    MONO
+                  </NeoBadge>
                 )}
-            </div>
-        );
-    };
-
-    if (!snapshot) return null;
-
-    return (
-        <NeoCard className="flex flex-col gap-2 p-2 max-h-full overflow-y-auto">
-            <h3 className="text-xs font-bold uppercase border-b-2 border-black pb-1 mb-1">Property Deeds</h3>
-
-            {/* Standard Property Groups */}
-            <div className="space-y-2">
-                {propertyGroups.map((group: string) => {
-                    const tiles = getTiles(group);
-                    if (tiles.length === 0) return null;
-                    return (
-                        <div key={group} className="flex gap-1 justify-center">
-                            {tiles.map(tile => <MiniTile key={tile.index} tile={tile} />)}
-                        </div>
-                    );
-                })}
+              </div>
             </div>
 
-            <div className="h-px bg-black/20 my-1" />
-
-            {/* Special Groups (Railroads & Utilities) */}
-            <div className="flex flex-wrap gap-2 justify-center">
-                {specialGroups.map((group: string) => {
-                    const tiles = getTiles(group);
-                    if (tiles.length === 0) return null;
-                    return (
-                        <div key={group} className="flex gap-1">
-                            {tiles.map(tile => <MiniTile key={tile.index} tile={tile} />)}
-                        </div>
-                    );
-                })}
+            <div className="flex gap-1 flex-wrap justify-center">
+              {group.tiles.map((tile) => (
+                <MiniTile
+                  key={tile.index}
+                  tile={tile}
+                  isSelected={deedHighlight === tile.index}
+                  onSelect={() =>
+                    setDeedHighlight(deedHighlight === tile.index ? null : tile.index)
+                  }
+                />
+              ))}
             </div>
-        </NeoCard>
-    );
+          </div>
+        ))}
+        {groups.length === 0 && (
+          <div className="text-xs italic text-gray-500 text-center py-4">
+            No properties for the current filter.
+          </div>
+        )}
+      </div>
+    </NeoCard>
+  );
 };

@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import type { Space } from '../../net/contracts';
+import { shallow } from 'zustand/shallow';
 import { Tile } from './Tile';
 import { cn } from '../ui/NeoPrimitive';
 import { TokenLayer } from './TokenLayer';
 import { getGridPosition } from './utils';
+import { useGameStore } from '../../state/store';
 
 interface BoardProps {
     spaces: Space[];
@@ -14,6 +16,18 @@ interface BoardProps {
 // 11x11 Grid logic moved to utils.ts
 
 export const Board = ({ spaces, className }: BoardProps) => {
+    const { deedHighlight, eventHighlight, decisionHighlight } = useGameStore(
+        (state) => state.ui,
+        shallow
+    );
+
+    const highlightSets = useMemo(() => {
+        return {
+            event: new Set(eventHighlight ?? []),
+            decision: new Set(decisionHighlight ?? []),
+        };
+    }, [eventHighlight, decisionHighlight]);
+
     // Ensure we have 40 spaces to prevent sync errors, though snapshot should guarantee it.
     const safeSpaces = useMemo(() => {
         if (spaces.length === 40) return spaces;
@@ -48,7 +62,18 @@ export const Board = ({ spaces, className }: BoardProps) => {
                                 }}
                                 className="relative bg-white"
                             >
-                                <Tile space={space} />
+                                <Tile
+                                    space={space}
+                                    highlightSource={
+                                        deedHighlight === space.index
+                                            ? 'deed'
+                                            : highlightSets.decision.has(space.index)
+                                                ? 'decision'
+                                                : highlightSets.event.has(space.index)
+                                                    ? 'event'
+                                                    : null
+                                    }
+                                />
                             </div>
                         );
                     })}

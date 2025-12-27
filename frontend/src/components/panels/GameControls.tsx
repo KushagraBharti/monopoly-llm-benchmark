@@ -4,9 +4,9 @@ import { useGameStore } from '../../state/store';
 import { NeoButton, NeoCard } from '../ui/NeoPrimitive';
 
 export const GameControls = () => {
-    const [loading, setLoading] = useState(false);
-    const snapshot = useGameStore((state) => state.snapshot);
-    const apiBase = getApiBaseUrl();
+  const [loading, setLoading] = useState(false);
+  const runStatus = useGameStore((state) => state.runStatus);
+  const apiBase = getApiBaseUrl();
 
     const handleStart = async () => {
         if (loading) return;
@@ -38,7 +38,7 @@ export const GameControls = () => {
         }
     };
 
-    const isRunning = snapshot?.phase && snapshot.phase !== 'GAME_OVER';
+  const isRunning = runStatus.running;
 
     return (
         <NeoCard className="flex flex-col gap-2 p-2" variant="flat">

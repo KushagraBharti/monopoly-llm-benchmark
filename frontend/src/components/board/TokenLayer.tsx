@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useGameStore } from '../../state/store';
 import { getCSSPosition } from './utils';
-import { getPlayerColor, getPlayerIndex } from './constants';
+import { getPlayerColor, getPlayerIndex, getPlayerInitials } from '../../domain/monopoly/colors';
 
 export const TokenLayer = () => {
     const snapshot = useGameStore((state) => state.snapshot);
@@ -64,7 +64,7 @@ export const TokenLayer = () => {
                             style={{ backgroundColor: color }}
                         >
                             <span className="font-black text-[10px] text-white drop-shadow-md select-none">
-                                {player.name?.[0]?.toUpperCase() || player.player_id.replace('player_', '').replace('p', '')}
+                                {getPlayerInitials(player.player_id, player.name)}
                             </span>
 
                             {/* Active Player Indicator Ring */}
