@@ -1,0 +1,28 @@
+{
+  "players": [
+    {
+      "player_id": "p1",
+      "name": "Player 1",
+      "openrouter_model_id": "openai/gpt-oss-120b",
+      "system_prompt": "You are playing Monopoly. Goal: win. Obey the rules and choose exactly one legal action using the provided tools."
+    },
+    {
+      "player_id": "p2",
+      "name": "Player 2",
+      "openrouter_model_id": "openai/gpt-oss-120b",
+      "system_prompt": "You are playing Monopoly. Goal: win. Obey the rules and choose exactly one legal action using the provided tools."
+    },
+    {
+      "player_id": "p3",
+      "name": "Player 3",
+      "openrouter_model_id": "openai/gpt-oss-120b",
+      "system_prompt": "You are playing Monopoly. Goal: win. Obey the rules and choose exactly one legal action using the provided tools."
+    },
+    {
+      "player_id": "p4",
+      "name": "Player 4",
+      "openrouter_model_id": "openai/gpt-oss-120b",
+      "system_prompt": "You are playing Monopoly. Goal: win. Obey the rules and choose exactly one legal action using the provided tools."
+    }
+  ]
+}

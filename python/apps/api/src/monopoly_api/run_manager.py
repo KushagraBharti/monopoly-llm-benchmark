@@ -11,7 +11,10 @@ from fastapi import WebSocket
 
 from monopoly_telemetry import RunFiles, init_run_files
 
-from monopoly_api.mock_runner import MockRunner, build_idle_snapshot
+from monopoly_api.mock_runner import build_idle_snapshot
+from monopoly_api.llm_runner import LlmRunner
+from monopoly_api.player_config import PlayerConfig
+from monopoly_arena import OpenRouterClient
 from monopoly_api.ws_protocol import make_event, make_hello, make_snapshot
 
 
@@ -19,23 +22,31 @@ class RunManager:
     def __init__(self, runs_dir: Path) -> None:
         self._runs_dir = runs_dir
         self._clients: set[WebSocket] = set()
-        self._runner: MockRunner | None = None
+        self._runner: LlmRunner | None = None
         self._runner_task: asyncio.Task[None] | None = None
         self._run_id: str | None = None
         self._snapshot: dict[str, Any] | None = None
         self._seq: int | None = None
         self._turn_index: int | None = None
         self._telemetry: RunFiles | None = None
+        self._players: list[PlayerConfig] = []
         self._lock = asyncio.Lock()
 
-    async def start_run(self, seed: int, players: list[dict[str, Any]]) -> str:
+    async def start_run(self, seed: int, players: list[PlayerConfig]) -> str:
         async with self._lock:
             if self._runner_task is not None:
                 await self._stop_run_locked()
             run_id = self._generate_run_id(seed, players)
             self._run_id = run_id
             self._telemetry = init_run_files(self._runs_dir, run_id)
-            self._runner = MockRunner(seed=seed, players=players, run_id=run_id)
+            self._players = players
+            self._runner = LlmRunner(
+                seed=seed,
+                players=players,
+                run_id=run_id,
+                openrouter=OpenRouterClient(),
+                run_files=self._telemetry,
+            )
             self._snapshot = self._runner.get_snapshot()
             self._turn_index = self._snapshot["turn_index"]
             self._seq = None
@@ -54,6 +65,7 @@ class RunManager:
             "run_id": self._run_id,
             "turn_index": self._turn_index,
             "connected_clients": len(self._clients),
+            "players": [player.to_status() for player in self._players],
         }
 
     def get_snapshot(self) -> dict[str, Any]:
@@ -123,7 +135,16 @@ class RunManager:
         self._runner_task = None
 
     @staticmethod
-    def _generate_run_id(seed: int, players: list[dict[str, Any]]) -> str:
-        seed_blob = json.dumps({"seed": seed, "players": players}, sort_keys=True)
+    def _generate_run_id(seed: int, players: list[PlayerConfig]) -> str:
+        players_blob = [
+            {
+                "player_id": player.player_id,
+                "name": player.name,
+                "openrouter_model_id": player.openrouter_model_id,
+                "system_prompt": player.system_prompt,
+            }
+            for player in players
+        ]
+        seed_blob = json.dumps({"seed": seed, "players": players_blob}, sort_keys=True)
         digest = hashlib.sha1(seed_blob.encode("utf-8")).hexdigest()[:8]
         return f"mock-{seed}-{digest}"

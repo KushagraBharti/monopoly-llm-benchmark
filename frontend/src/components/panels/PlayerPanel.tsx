@@ -2,12 +2,18 @@ import { useMemo } from 'react';
 import { useGameStore } from '../../state/store';
 import { getPlayerColor, getPlayerInitials } from '../../domain/monopoly/colors';
 import { selectLeaderboard } from '../../domain/monopoly/selectors';
-import { NeoCard, cn } from '../ui/NeoPrimitive';
+import { NeoBadge, NeoCard, cn } from '../ui/NeoPrimitive';
 
 export const PlayerPanel = () => {
   const snapshot = useGameStore((state) => state.snapshot);
+  const runStatus = useGameStore((state) => state.runStatus);
   const activePlayerId = snapshot?.active_player_id;
   const standings = useMemo(() => selectLeaderboard(snapshot), [snapshot]);
+  const modelLookup = useMemo(
+    () =>
+      new Map(runStatus.players?.map((player) => [player.player_id, player.model_display_name])),
+    [runStatus.players]
+  );
 
   return (
     <NeoCard className="flex flex-col gap-0 border-neo-border shadow-neo overflow-hidden bg-white">
@@ -40,6 +46,11 @@ export const PlayerPanel = () => {
                 </div>
                 <div className="flex flex-col leading-none">
                   <span className="font-bold text-[9px] uppercase truncate max-w-[70px]">{player.name}</span>
+                  {modelLookup.has(player.player_id) && (
+                    <NeoBadge variant="info" className="text-[6px] px-1 py-0 mt-0.5">
+                      {modelLookup.get(player.player_id)}
+                    </NeoBadge>
+                  )}
                   {(player.inJail || player.bankrupt) && (
                     <div className="flex gap-1 mt-0.5">
                       {player.inJail && <span className="bg-neo-orange text-white text-[6px] px-1 font-bold">JAIL</span>}

@@ -8,11 +8,19 @@ type ConnectionState = {
   lastError?: string
 }
 
+export type RunStatusPlayer = {
+  player_id: string
+  name: string
+  model_display_name: string
+  openrouter_model_id: string
+}
+
 export type RunStatus = {
   runId: string | null
   turnIndex: number | null
   running: boolean
   connectedClients?: number
+  players?: RunStatusPlayer[]
   lastUpdatedAt?: number
 }
 
@@ -48,6 +56,7 @@ export const useGameStore = create<StoreState>((set) => ({
     turnIndex: null,
     running: false,
     connectedClients: 0,
+    players: [],
     lastUpdatedAt: undefined,
   },
   snapshot: null,

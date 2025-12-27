@@ -89,7 +89,12 @@ class Engine:
 
         return self.state, events, None, snapshot
 
-    def apply_action(self, action: dict[str, Any]) -> StepResult:
+    def apply_action(
+        self,
+        action: dict[str, Any],
+        *,
+        decision_meta: dict[str, Any] | None = None,
+    ) -> StepResult:
         events: list[Event] = []
         snapshot: dict[str, Any] | None = None
 
@@ -103,6 +108,11 @@ class Engine:
 
         pending_turn = self._pending_turn
         player_id = decision["player_id"]
+        meta_valid = True
+        meta_error = None
+        if decision_meta is not None:
+            meta_valid = bool(decision_meta.get("valid", True))
+            meta_error = decision_meta.get("error")
         events.append(
             self._build_event(
                 "LLM_DECISION_RESPONSE",
@@ -111,8 +121,8 @@ class Engine:
                     "decision_id": decision["decision_id"],
                     "player_id": player_id,
                     "action_name": action["action"],
-                    "valid": True,
-                    "error": None,
+                    "valid": meta_valid,
+                    "error": meta_error,
                 },
                 turn_index=self.state.turn_index,
             )

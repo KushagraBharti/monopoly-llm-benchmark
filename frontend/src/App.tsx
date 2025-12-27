@@ -59,6 +59,12 @@ function App() {
           run_id: string | null;
           turn_index: number | null;
           connected_clients: number;
+          players?: {
+            player_id: string;
+            name: string;
+            model_display_name: string;
+            openrouter_model_id: string;
+          }[];
         };
         if (!active) return;
         setRunStatus({
@@ -66,6 +72,7 @@ function App() {
           runId: data.run_id,
           turnIndex: data.turn_index ?? null,
           connectedClients: data.connected_clients,
+          players: data.players ?? [],
         });
       } catch {
         if (!active) return;

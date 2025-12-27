@@ -70,6 +70,8 @@ Create a `.env` file in the repo root or in `python/apps/api` depending on your 
 
 ### Optional
 - `OPENROUTER_MODEL`
+- `OPENROUTER_SYSTEM_PROMPT`
+- `PLAYERS_CONFIG_PATH` (defaults to `python/apps/api/src/monopoly_api/config/players.json`)
 - `RUNS_DIR`
 
 ## How gameplay works (high-level)
@@ -87,6 +89,9 @@ Each run creates a folder under `runs/RUN_ID/`.
 - `decisions.jsonl`: decision inputs, prompts, model outputs, tool calls, validation results, retries, latencies, token usage when available
 - state snapshots: periodic full snapshots for resync and replay support
 - `summary.json`: winner, turns, bankruptcies, cost estimates, key metrics
+
+## Player model configuration
+Default player models live in `python/apps/api/src/monopoly_api/config/players.json`. You can swap models by editing that file or by providing `players` in the `/run/start` request (each entry can include `openrouter_model_id` and `system_prompt`).
 
 ## Benchmarking goals
 1. Compare win rate across models and prompts under identical seeds and settings

@@ -1,0 +1,123 @@
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_SYSTEM_PROMPT = (
+    "You are playing Monopoly. Goal: win. "
+    "Obey the rules and choose exactly one legal action using the provided tools."
+)
+
+
+def derive_model_display_name(model_id: str) -> str:
+    if "/" in model_id:
+        return model_id.split("/")[-1]
+    return model_id
+
+
+@dataclass(frozen=True)
+class PlayerConfig:
+    player_id: str
+    name: str
+    openrouter_model_id: str
+    model_display_name: str
+    system_prompt: str
+
+    def to_status(self) -> dict[str, Any]:
+        return {
+            "player_id": self.player_id,
+            "name": self.name,
+            "openrouter_model_id": self.openrouter_model_id,
+            "model_display_name": self.model_display_name,
+        }
+
+
+def _normalize_player_entry(
+    entry: dict[str, Any],
+    *,
+    default_model_id: str,
+    default_system_prompt: str,
+) -> PlayerConfig:
+    player_id = entry.get("player_id") or entry.get("id")
+    if not player_id:
+        raise ValueError("Player config missing player_id.")
+    name = entry.get("name") or player_id
+    model_id = entry.get("openrouter_model_id") or default_model_id
+    system_prompt = entry.get("system_prompt") or default_system_prompt
+    return PlayerConfig(
+        player_id=player_id,
+        name=name,
+        openrouter_model_id=model_id,
+        model_display_name=derive_model_display_name(model_id),
+        system_prompt=system_prompt,
+    )
+
+
+def load_player_config_file(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    if isinstance(data, dict):
+        players = data.get("players", [])
+    else:
+        players = data
+    if not isinstance(players, list):
+        return []
+    return [entry for entry in players if isinstance(entry, dict)]
+
+
+def build_player_configs(
+    *,
+    requested_players: list[dict[str, Any]] | None,
+    config_path: Path,
+) -> list[PlayerConfig]:
+    default_model_id = os.getenv("OPENROUTER_MODEL", "openai/gpt-oss-120b")
+    default_system_prompt = os.getenv("OPENROUTER_SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT)
+
+    file_entries = load_player_config_file(config_path)
+    defaults = {
+        entry.get("player_id"): entry for entry in file_entries if entry.get("player_id")
+    }
+
+    if requested_players:
+        configs: list[PlayerConfig] = []
+        for entry in requested_players:
+            merged = dict(defaults.get(entry.get("player_id"), {}))
+            merged.update(entry)
+            configs.append(
+                _normalize_player_entry(
+                    merged,
+                    default_model_id=default_model_id,
+                    default_system_prompt=default_system_prompt,
+                )
+            )
+        return configs
+
+    if file_entries:
+        return [
+            _normalize_player_entry(
+                entry,
+                default_model_id=default_model_id,
+                default_system_prompt=default_system_prompt,
+            )
+            for entry in file_entries
+        ]
+
+    fallback_ids = ["p1", "p2", "p3", "p4"]
+    return [
+        PlayerConfig(
+            player_id=player_id,
+            name=f"Player {idx + 1}",
+            openrouter_model_id=default_model_id,
+            model_display_name=derive_model_display_name(default_model_id),
+            system_prompt=default_system_prompt,
+        )
+        for idx, player_id in enumerate(fallback_ids)
+    ]

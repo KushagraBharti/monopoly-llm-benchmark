@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from monopoly_api.run_manager import RunManager
 from monopoly_api.settings import load_settings
+from monopoly_api.player_config import build_player_configs
 
 app = FastAPI(title="Monopoly LLM Benchmark API")
 settings = load_settings()
@@ -33,7 +34,9 @@ def health() -> dict:
 
 class PlayerSpec(BaseModel):
     player_id: str
-    name: str
+    name: str | None = None
+    openrouter_model_id: str | None = None
+    system_prompt: str | None = None
 
 
 class StartRunRequest(BaseModel):
@@ -44,15 +47,11 @@ class StartRunRequest(BaseModel):
 @app.post("/run/start")
 async def run_start(body: StartRunRequest) -> dict:
     seed = body.seed if body.seed is not None else int(time.time())
-    if body.players:
-        players = [player.model_dump() for player in body.players]
-    else:
-        players = [
-            {"player_id": "p1", "name": "Player 1"},
-            {"player_id": "p2", "name": "Player 2"},
-            {"player_id": "p3", "name": "Player 3"},
-            {"player_id": "p4", "name": "Player 4"},
-        ]
+    requested_players = [player.model_dump(exclude_none=True) for player in body.players] if body.players else None
+    players = build_player_configs(
+        requested_players=requested_players,
+        config_path=settings.players_config_path,
+    )
     run_id = await run_manager.start_run(seed=seed, players=players)
     return {"run_id": run_id}
 

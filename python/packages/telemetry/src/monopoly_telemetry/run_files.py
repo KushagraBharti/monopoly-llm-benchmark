@@ -13,6 +13,7 @@ class RunFiles:
     run_id: str
     run_dir: Path
     events_path: Path
+    decisions_path: Path
     snapshots_dir: Path
     summary_path: Path
 
@@ -36,6 +37,9 @@ class RunFiles:
             encoding="utf-8",
         )
 
+    def write_decision(self, decision_entry: dict[str, Any]) -> None:
+        append_jsonl(self.decisions_path, decision_entry)
+
 
 def init_run_files(runs_dir: Path, run_id: str) -> RunFiles:
     run_dir = runs_dir / run_id
@@ -45,6 +49,7 @@ def init_run_files(runs_dir: Path, run_id: str) -> RunFiles:
         run_id=run_id,
         run_dir=run_dir,
         events_path=run_dir / "events.jsonl",
+        decisions_path=run_dir / "decisions.jsonl",
         snapshots_dir=snapshots_dir,
         summary_path=run_dir / "summary.json",
     )
