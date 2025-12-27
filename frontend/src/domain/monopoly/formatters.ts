@@ -244,10 +244,11 @@ export const formatEventCard = (event: Event): EventCard => {
         isMinor: true,
       };
     default: {
+      const unknownType = (event as unknown as { type: string }).type;
       const card = defaultCard(event);
       return {
         ...card,
-        parts: [{ kind: 'text', value: `Unknown event: ${event.type}` }],
+        parts: [{ kind: 'text', value: `Unknown event: ${unknownType}` }],
       };
     }
   }

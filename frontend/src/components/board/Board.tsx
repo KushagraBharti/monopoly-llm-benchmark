@@ -1,11 +1,10 @@
 import { useMemo } from 'react';
 import type { Space } from '../../net/contracts';
-import { shallow } from 'zustand/shallow';
 import { Tile } from './Tile';
 import { cn } from '../ui/NeoPrimitive';
 import { TokenLayer } from './TokenLayer';
 import { getGridPosition } from './utils';
-import { useGameStore } from '../../state/store';
+import { useGameStore, type StoreState } from '../../state/store';
 
 interface BoardProps {
     spaces: Space[];
@@ -14,8 +13,7 @@ interface BoardProps {
 
 export const Board = ({ spaces, className }: BoardProps) => {
     const { deedHighlight, eventHighlight, decisionHighlight } = useGameStore(
-        (state) => state.ui,
-        shallow
+        (state: StoreState) => state.ui
     );
 
     const highlightSets = useMemo(() => {

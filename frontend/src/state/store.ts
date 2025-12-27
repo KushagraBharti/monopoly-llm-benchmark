@@ -8,7 +8,7 @@ type ConnectionState = {
   lastError?: string
 }
 
-type RunStatus = {
+export type RunStatus = {
   runId: string | null
   turnIndex: number | null
   running: boolean
@@ -16,13 +16,13 @@ type RunStatus = {
   lastUpdatedAt?: number
 }
 
-type UiState = {
+export type UiState = {
   deedHighlight: number | null
   eventHighlight: number[] | null
   decisionHighlight: number[] | null
 }
 
-type StoreState = {
+export type StoreState = {
   connection: ConnectionState
   runStatus: RunStatus
   snapshot: StateSnapshot | null

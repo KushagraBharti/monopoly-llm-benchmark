@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useGameStore } from '../../state/store';
 import { getCSSPosition } from './utils';
-import { getPlayerColor, getPlayerIndex, getPlayerInitials } from '../../domain/monopoly/colors';
+import { getPlayerColor, getPlayerInitials } from '../../domain/monopoly/colors';
 
 export const TokenLayer = () => {
     const snapshot = useGameStore((state) => state.snapshot);

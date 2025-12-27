@@ -1,4 +1,6 @@
-import type { SpaceKind } from '../../net/contracts';
+import type { Space } from '../../net/contracts';
+
+type SpaceKind = Space['kind'];
 
 export type GroupKey =
   | 'BROWN'

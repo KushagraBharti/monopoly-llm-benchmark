@@ -20,6 +20,23 @@ const severityBorders: Record<EventSeverity, string> = {
   danger: 'border-neo-pink',
 };
 
+const KNOWN_EVENT_TYPES = new Set<string>([
+  'GAME_STARTED',
+  'TURN_STARTED',
+  'DICE_ROLLED',
+  'PLAYER_MOVED',
+  'CASH_CHANGED',
+  'PROPERTY_PURCHASED',
+  'RENT_PAID',
+  'SENT_TO_JAIL',
+  'TURN_ENDED',
+  'GAME_ENDED',
+  'LLM_DECISION_REQUESTED',
+  'LLM_DECISION_RESPONSE',
+  'LLM_PUBLIC_MESSAGE',
+  'LLM_PRIVATE_THOUGHT',
+]);
+
 const PlayerName = ({ id }: { id: string }) => (
   <span
     className="font-brutal px-1.5 py-0.5 border border-black text-[10px] items-center inline-flex shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
@@ -92,7 +109,7 @@ const EventItem = ({ event }: { event: Event }) => {
   const card = useMemo(() => formatEventCard(event), [event]);
 
   // "Unknown" events should look distinct but clean
-  const isUnknown = event.type === 'UNKNOWN';
+  const isUnknown = !KNOWN_EVENT_TYPES.has(event.type);
 
   return (
     <div
