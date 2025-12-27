@@ -5,7 +5,6 @@ import { NeoButton, NeoCard } from '../ui/NeoPrimitive';
 
 export const GameControls = () => {
     const [loading, setLoading] = useState(false);
-    const status = useGameStore((state) => state.connection.status);
     const snapshot = useGameStore((state) => state.snapshot);
     const apiBase = getApiBaseUrl();
 
@@ -42,17 +41,14 @@ export const GameControls = () => {
     const isRunning = snapshot?.phase && snapshot.phase !== 'GAME_OVER';
 
     return (
-        <NeoCard className="flex flex-col gap-2 p-2">
-            <div className="flex justify-between items-center mb-2">
-                <span className="font-bold uppercase text-xs tracking-wider">Control Deck</span>
-                <div className={`w-2 h-2 rounded-full ${status === 'connected' ? 'bg-neo-green' : 'bg-red-500'}`} title={status} />
-            </div>
+        <NeoCard className="flex flex-col gap-2 p-2" variant="flat">
             <div className="grid grid-cols-2 gap-2">
                 <NeoButton
                     size="sm"
                     variant="primary"
                     onClick={handleStart}
                     disabled={loading}
+                    className="w-full"
                 >
                     {isRunning ? 'Restart' : 'Start Run'}
                 </NeoButton>
@@ -60,7 +56,8 @@ export const GameControls = () => {
                     size="sm"
                     variant="ghost"
                     onClick={handleStop}
-                    disabled={loading}
+                    disabled={loading || !isRunning}
+                    className="w-full"
                 >
                     Stop
                 </NeoButton>

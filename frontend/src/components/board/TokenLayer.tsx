@@ -1,35 +1,24 @@
 import { motion } from 'framer-motion';
 import { useGameStore } from '../../state/store';
 import { getCSSPosition } from './utils';
-
-// Deterministic pastel colors for players based on name/ID
-const PLAYER_COLORS = [
-    '#FF6B6B', // Red
-    '#4ECDC4', // Teal
-    '#FFE66D', // Yellow
-    '#45B7D1', // Blue
-    '#96CEB4', // Green
-    '#D4A5A5', // Pink
-];
+import { getPlayerColor } from './constants';
 
 export const TokenLayer = () => {
     const snapshot = useGameStore((state) => state.snapshot);
     const players = snapshot?.players || [];
+    const activeId = snapshot?.active_player_id;
 
     return (
-        <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
-            {players.map((player, i) => {
+        <div className="absolute inset-0 pointer-events-none z-20 overflow-visible">
+            {players.map((player) => {
                 const { x, y } = getCSSPosition(player.position);
+                const color = getPlayerColor(player.player_id);
+                const isActive = activeId === player.player_id;
 
                 // Offset logic for multiple players on same spot
-                // Simple consistent jitter based on player ID
                 const offsetHash = player.player_id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                const offsetX = (offsetHash % 20) - 10;
-                const offsetY = (offsetHash % 15) - 7.5;
-
-                // Calculate actual % position with offset
-                // We act as if the parent 11x11 grid is the coordinate space
-                // x, y are centers of tiles in %.
+                const offsetX = (offsetHash % 24) - 12; // slightly more spread
+                const offsetY = (offsetHash % 24) - 12;
 
                 return (
                     <motion.div
@@ -38,25 +27,35 @@ export const TokenLayer = () => {
                         animate={{
                             left: `calc(${x}% + ${offsetX}px)`,
                             top: `calc(${y}% + ${offsetY}px)`,
+                            scale: isActive ? 1.2 : 1,
+                            zIndex: isActive ? 50 : 20,
                         }}
                         transition={{
                             type: "spring",
-                            stiffness: 60,
+                            stiffness: 80,
                             damping: 15,
-                            mass: 1,
+                            mass: 0.8,
                         }}
-                        className="absolute w-8 h-8 -ml-4 -mt-4 bg-white border-2 border-black rounded-full shadow-neo-sm flex items-center justify-center z-20"
-                        style={{ backgroundColor: PLAYER_COLORS[i % PLAYER_COLORS.length] }}
+                        className="absolute -ml-3 -mt-3"
                     >
-                        <span className="font-bold text-xs text-black">{player.name[0]}</span>
-                        {/* Outline ring if active player? */}
-                        {snapshot?.active_player_id === player.player_id && (
-                            <motion.div
-                                className="absolute inset-0 rounded-full border-2 border-white"
-                                animate={{ scale: [1, 1.3, 1] }}
-                                transition={{ repeat: Infinity, duration: 1.5 }}
-                            />
-                        )}
+                        {/* The Token Itself */}
+                        <div
+                            className="relative w-6 h-6 rounded-full border-2 border-black flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,0.5)] bg-white"
+                            style={{ backgroundColor: color }}
+                        >
+                            <span className="font-black text-[10px] text-white drop-shadow-md select-none">
+                                {player.player_id.replace('player_', '')}
+                            </span>
+
+                            {/* Active Player Indicator Ring */}
+                            {isActive && (
+                                <motion.div
+                                    className="absolute -inset-2 rounded-full border-2 border-black opacity-50"
+                                    animate={{ scale: [1, 1.4, 1], opacity: [0.8, 0, 0.8] }}
+                                    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                                />
+                            )}
+                        </div>
                     </motion.div>
                 );
             })}
