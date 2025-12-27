@@ -15,7 +15,6 @@ export const TokenLayer = () => {
         positionCounts.set(p.position, count + 1);
     });
 
-    // Track which players we've placed at each position
     const positionIndexes = new Map<number, number>();
 
     return (
@@ -25,17 +24,17 @@ export const TokenLayer = () => {
                 const color = getPlayerColor(player.player_id);
                 const isActive = activeId === player.player_id;
 
-                // Deterministic offset based on player index at this position
                 const playersAtPos = positionCounts.get(player.position) || 1;
                 const indexAtPos = positionIndexes.get(player.position) || 0;
                 positionIndexes.set(player.position, indexAtPos + 1);
 
-                // Spread tokens in a circle pattern for cleaner stacking
+                // Spiral/Cluster placement
                 let offsetX = 0;
                 let offsetY = 0;
                 if (playersAtPos > 1) {
-                    const angle = (indexAtPos / playersAtPos) * 2 * Math.PI - Math.PI / 2;
-                    const radius = 10 + (playersAtPos > 4 ? 4 : 0);
+                    // Small jitter for "pile of chips" feel, consistent by index
+                    const angle = (indexAtPos / playersAtPos) * 2 * Math.PI;
+                    const radius = 8;
                     offsetX = Math.cos(angle) * radius;
                     offsetY = Math.sin(angle) * radius;
                 }
@@ -47,43 +46,51 @@ export const TokenLayer = () => {
                         animate={{
                             left: `calc(${x}% + ${offsetX}px)`,
                             top: `calc(${y}% + ${offsetY}px)`,
-                            scale: isActive ? 1.25 : 1,
-                            zIndex: isActive ? 50 : 20 + getPlayerIndex(player.player_id),
+                            scale: isActive ? 1.2 : 1,
+                            zIndex: isActive ? 100 : 50 + indexAtPos,
+                            y: isActive ? -5 : 0 // Physical "lift"
                         }}
                         transition={{
                             type: "spring",
-                            stiffness: 100,
+                            stiffness: 120,
                             damping: 15,
-                            mass: 0.6,
                         }}
-                        className="absolute -ml-3 -mt-3"
+                        className="absolute w-0 h-0 flex items-center justify-center"
                     >
-                        {/* The Token Itself */}
+                        {/* Shadow blob */}
+                        <div className="absolute w-6 h-2 bg-black/40 rounded-[100%] blur-[2px] translate-y-3 skew-x-12" />
+
+                        {/* Chip Body */}
                         <div
-                            className="relative w-6 h-6 rounded-full border-2 border-black flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,0.5)]"
-                            style={{ backgroundColor: color }}
+                            className="relative w-7 h-7 rounded-full border-[2px] border-black flex items-center justify-center transition-shadow"
+                            style={{
+                                backgroundColor: color,
+                                boxShadow: '0px 3px 0px 0px #000' // Material Thickness
+                            }}
                         >
-                            <span className="font-black text-[10px] text-white drop-shadow-md select-none">
+                            {/* Inner Rim */}
+                            <div className="absolute inset-[3px] rounded-full border border-black/20 border-dashed opacity-50" />
+
+                            <span className="font-black text-[9px] text-white drop-shadow-[0_1px_0_rgba(0,0,0,0.8)] select-none uppercase tracking-tighter">
                                 {getPlayerInitials(player.player_id, player.name)}
                             </span>
 
-                            {/* Active Player Indicator Ring */}
+                            {/* Active Shine */}
                             {isActive && (
-                                <motion.div
-                                    className="absolute -inset-1.5 rounded-full border-2 border-black"
-                                    style={{ borderColor: color }}
-                                    animate={{
-                                        scale: [1, 1.3, 1],
-                                        opacity: [0.8, 0.2, 0.8]
-                                    }}
-                                    transition={{
-                                        repeat: Infinity,
-                                        duration: 1.2,
-                                        ease: "easeInOut"
-                                    }}
-                                />
+                                <div className="absolute -top-1 -right-1 w-2 h-2 bg-white rounded-full animate-ping opacity-75" />
                             )}
                         </div>
+
+                        {/* Label on Hover / Active (Optional tooltip) */}
+                        {isActive && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: -24 }}
+                                className="absolute bg-black text-white text-[8px] px-1.5 py-0.5 rounded-sm whitespace-nowrap z-50 pointer-events-auto"
+                            >
+                                {player.name}
+                            </motion.div>
+                        )}
                     </motion.div>
                 );
             })}

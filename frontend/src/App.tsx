@@ -32,6 +32,7 @@ function App() {
     if (runStatus.runId) return 'COMPLETE';
     return 'IDLE';
   }, [runStatus.running, runStatus.runId]);
+
   const showAuction = false;
   const showTrade = false;
 
@@ -105,24 +106,24 @@ function App() {
 
       {/* Sidebar: Left Panel (Players & Controls & Ownership) */}
       <aside className="w-80 h-full border-r-4 border-black bg-white flex flex-col z-30 shadow-neo-lg">
-        <header className="p-4 border-b-2 border-black bg-gray-50">
-          <h1 className="text-3xl font-black uppercase tracking-tighter leading-none mb-2">
-            Monopoly <br /><span className="text-neo-pink block">Arena</span>
+        <header className="p-2 border-b-2 border-black bg-gray-50 flex-shrink-0">
+          <h1 className="text-xl font-black uppercase tracking-tighter leading-none mb-1">
+            Monopoly <span className="text-neo-pink">Arena</span>
           </h1>
 
-          <div className="flex flex-col gap-1.5 mt-2">
+          <div className="flex flex-col gap-1 mt-0.5">
             {/* Connection Status */}
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-bold uppercase text-gray-500 flex items-center gap-1">
+              <span className="text-[9px] font-bold uppercase text-gray-500 flex items-center gap-1">
                 <span className={cn(
-                  "w-2 h-2 rounded-full",
+                  "w-1.5 h-1.5 rounded-full",
                   isConnected ? "bg-neo-green" : "bg-neo-pink animate-pulse"
                 )} />
                 Connection
               </span>
               <NeoBadge
                 variant={isConnected ? 'success' : 'error'}
-                className={cn(!isConnected && "animate-pulse")}
+                className={cn(!isConnected && "animate-pulse", "text-[9px] py-0 px-1 h-3")}
               >
                 {isConnected ? 'ONLINE' : 'OFFLINE'}
               </NeoBadge>
@@ -130,7 +131,7 @@ function App() {
 
             {/* Run Status */}
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-bold uppercase text-gray-500">
+              <span className="text-[9px] font-bold uppercase text-gray-500">
                 Run Status
               </span>
               <NeoBadge
@@ -139,6 +140,7 @@ function App() {
                     runState === 'COMPLETE' ? 'success' :
                       'neutral'
                 }
+                className="text-[9px] py-0 px-1 h-3"
               >
                 {runState === 'COMPLETE' && 'OK '}
                 {runState === 'RUNNING' && '>> '}
@@ -148,15 +150,22 @@ function App() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto flex flex-col p-2 gap-2">
-          {/* Controls at top of scroll area */}
-          <GameControls />
-
-          <div className="flex-1 flex flex-col gap-2 min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 bg-neo-bg">
+          {/* Controls & Players - FIXED (Non-scrolling area to ensure visibility) */}
+          <div className="flex-shrink-0 flex flex-col gap-1 p-1 border-b-2 border-black bg-white z-10">
+            <GameControls />
             <PlayerPanel />
+          </div>
+
+          {/* Scrolling Area for Deeds/Auction which can be long */}
+          <div className="flex-1 overflow-y-auto p-1 min-h-0 relative bg-neo-bg">
             <OwnershipPanel />
-            <AuctionPanel visible={showAuction} />
-            <TradeInspectorPanel visible={showTrade} />
+            {(showAuction || showTrade) && (
+              <div className="mt-2 flex flex-col gap-2">
+                <AuctionPanel visible={showAuction} />
+                <TradeInspectorPanel visible={showTrade} />
+              </div>
+            )}
           </div>
         </div>
       </aside>

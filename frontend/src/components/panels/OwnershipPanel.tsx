@@ -3,7 +3,7 @@ import type { Space } from '../../net/contracts';
 import { useGameStore } from '../../state/store';
 import { getGroupColor, getPlayerColor } from '../../domain/monopoly/colors';
 import { selectOwnershipGroups } from '../../domain/monopoly/selectors';
-import { NeoBadge, NeoCard, cn } from '../ui/NeoPrimitive';
+import { NeoCard, cn } from '../ui/NeoPrimitive';
 
 const formatMiniLabel = (name: string): string => {
   const cleaned = name
@@ -31,39 +31,41 @@ const MiniTile = ({ tile, isSelected, onSelect }: MiniTileProps) => {
       type="button"
       onClick={onSelect}
       className={cn(
-        'relative flex flex-col border-2 border-black h-14 w-11 text-[8px] text-center bg-white transition-transform hover:scale-105 cursor-pointer shadow-neo-sm',
-        isSelected && 'outline outline-2 outline-black',
+        'relative flex flex-col border-[1.5px] border-black h-14 w-11 text-[8px] text-center bg-white transition-all cursor-pointer overflow-hidden',
+        isSelected
+          ? 'scale-110 shadow-neo-lg z-10 ring-2 ring-neo-pink'
+          : 'hover:scale-105 shadow-neo-sm hover:shadow-neo',
         tile.mortgaged && 'opacity-60 grayscale'
       )}
       title={`${tile.name}${tile.owner_id ? ` (Owned by ${tile.owner_id})` : ''}`}
     >
       <div
-        className="h-2 w-full border-b border-black"
+        className="h-2.5 w-full border-b-[1.5px] border-black shrink-0"
         style={{ backgroundColor: getGroupColor(tile.group) }}
       />
 
-      <div className="flex-1 flex flex-col justify-center items-center leading-none p-0.5 relative">
-        <span className="uppercase font-bold text-[7px] leading-[1.1] break-words px-0.5">
+      <div className="flex-1 flex flex-col justify-between items-center p-0.5 w-full">
+        <span className="uppercase font-bold text-[7px] leading-[0.95] tracking-tight break-words w-full line-clamp-2">
           {label}
         </span>
 
-        <div className="flex gap-0.5 mt-1">
-          {tile.hotel && <div className="w-2 h-2 bg-red-600 border border-black" />}
+        <div className="flex gap-0.5 mb-0.5">
+          {tile.hotel && <div className="w-2 h-2 bg-neo-red border border-black" />}
           {!tile.hotel &&
             Array.from({ length: tile.houses }).map((_, i) => (
-              <div key={i} className="w-1.5 h-1.5 bg-green-500 border border-black rounded-full" />
+              <div key={i} className="w-1.5 h-1.5 bg-neo-green border border-black" />
             ))}
         </div>
 
         {tile.mortgaged && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-red-600 font-bold -rotate-45 opacity-80 text-[8px]">M</span>
+          <div className="absolute inset-0 flex items-center justify-center bg-white/40">
+            <span className="text-neo-red font-black -rotate-45 text-[8px] border border-neo-red px-0.5 bg-white">M</span>
           </div>
         )}
       </div>
 
       {ownerColor && (
-        <div className="h-1.5 w-full border-t border-black" style={{ backgroundColor: ownerColor }} />
+        <div className="h-1.5 w-full border-t border-black shrink-0" style={{ backgroundColor: ownerColor }} />
       )}
     </button>
   );
@@ -84,75 +86,56 @@ export const OwnershipPanel = () => {
   if (!snapshot) return null;
 
   return (
-    <NeoCard className="flex flex-col gap-2 p-2 max-h-full overflow-y-auto">
-      <div className="flex items-center justify-between border-b-2 border-black pb-1">
-        <h3 className="text-xs font-bold uppercase">Property Deeds</h3>
-        {filterPlayerId && (
-          <button
-            type="button"
-            onClick={() => setFilterPlayerId(null)}
-            className="text-[9px] font-mono underline"
-          >
-            Clear
-          </button>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-1">
-        <button
-          type="button"
-          onClick={() => setFilterPlayerId(null)}
-          className={cn(
-            'px-2 py-0.5 text-[9px] font-bold uppercase border-2 border-black',
-            filterPlayerId === null ? 'bg-black text-white shadow-neo-sm' : 'bg-white'
+    <NeoCard className="flex flex-col gap-0 border-neo-border shadow-neo overflow-hidden h-full min-h-0 bg-white">
+      <div className="flex flex-col border-b-2 border-black bg-white p-2 gap-2 shadow-sm z-10">
+        <div className="flex justify-between items-center">
+          <h3 className="text-xs font-black uppercase tracking-wider">Deeds</h3>
+          {filterPlayerId && (
+            <button onClick={() => setFilterPlayerId(null)} className="text-[9px] font-bold underline hover:text-neo-blue">
+              Show All
+            </button>
           )}
-        >
-          All
-        </button>
-        {players.map((player) => (
+        </div>
+
+        {/* Filter Chips */}
+        <div className="flex flex-wrap gap-1">
           <button
-            key={player.player_id}
-            type="button"
-            onClick={() => setFilterPlayerId(player.player_id)}
+            onClick={() => setFilterPlayerId(null)}
             className={cn(
-              'px-2 py-0.5 text-[9px] font-bold uppercase border-2 border-black text-white',
-              filterPlayerId === player.player_id ? 'shadow-neo-sm' : 'opacity-80'
+              "px-2 py-0.5 text-[8px] font-bold uppercase border border-black transition-all",
+              filterPlayerId === null
+                ? "bg-black text-white shadow-[1px_1px_0_0_rgba(0,0,0,0.5)]"
+                : "bg-white hover:bg-gray-100"
             )}
-            style={{ backgroundColor: getPlayerColor(player.player_id) }}
           >
-            {player.name}
+            ALL
           </button>
-        ))}
+          {players.map(p => (
+            <button
+              key={p.player_id}
+              onClick={() => setFilterPlayerId(p.player_id)}
+              className={cn(
+                "px-2 py-0.5 text-[8px] font-bold uppercase border border-black transition-all text-white shadow-[1px_1px_0_0_rgba(0,0,0,1)]",
+                filterPlayerId === p.player_id ? "opacity-100 scale-105" : "opacity-60 hover:opacity-100"
+              )}
+              style={{ backgroundColor: getPlayerColor(p.player_id) }}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="flex-1 overflow-y-auto brutal-scroll p-2 space-y-3 bg-white">
         {groups.map((group) => (
-          <div key={group.key} className="border-2 border-black bg-white p-1 shadow-neo-sm">
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <div className="flex items-center gap-1">
-                <span
-                  className="w-3 h-3 border border-black"
-                  style={{ backgroundColor: group.color }}
-                />
-                <span className="text-[10px] font-bold uppercase">{group.label}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[9px] font-mono">
-                  {(filterPlayerId ? group.ownedByPlayerCount ?? 0 : group.ownedCount)}/{group.totalCount}
-                </span>
-                {group.isComplete && group.monopolyOwnerId && (
-                  <NeoBadge
-                    variant="success"
-                    className="text-[8px]"
-                    style={{ backgroundColor: getPlayerColor(group.monopolyOwnerId), color: 'white' }}
-                  >
-                    MONO
-                  </NeoBadge>
-                )}
-              </div>
+          <div key={group.key}>
+            <div className="flex items-center gap-2 mb-1 pl-1">
+              <span className="w-2 h-2 border border-black shadow-[1px_1px_0_0_#000]" style={{ backgroundColor: group.color }} />
+              <span className="text-[9px] font-black uppercase text-gray-700">{group.label}</span>
+              <div className="h-[1px] flex-1 bg-black/10" />
             </div>
 
-            <div className="flex gap-1 flex-wrap justify-center">
+            <div className="flex gap-1.5 flex-wrap pl-1">
               {group.tiles.map((tile) => (
                 <MiniTile
                   key={tile.index}
@@ -166,9 +149,10 @@ export const OwnershipPanel = () => {
             </div>
           </div>
         ))}
+
         {groups.length === 0 && (
-          <div className="text-xs italic text-gray-500 text-center py-4">
-            No properties for the current filter.
+          <div className="text-center py-8 opacity-50 text-[10px] font-mono">
+            No properties found.
           </div>
         )}
       </div>

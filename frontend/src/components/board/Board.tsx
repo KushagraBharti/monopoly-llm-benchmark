@@ -12,9 +12,6 @@ interface BoardProps {
     className?: string;
 }
 
-// Map logical index to Grid position (row, col)
-// 11x11 Grid logic moved to utils.ts
-
 export const Board = ({ spaces, className }: BoardProps) => {
     const { deedHighlight, eventHighlight, decisionHighlight } = useGameStore(
         (state) => state.ui,
@@ -28,7 +25,7 @@ export const Board = ({ spaces, className }: BoardProps) => {
         };
     }, [eventHighlight, decisionHighlight]);
 
-    // Ensure we have 40 spaces to prevent sync errors, though snapshot should guarantee it.
+    // Ensure we have 40 spaces
     const safeSpaces = useMemo(() => {
         if (spaces.length === 40) return spaces;
         return Array.from({ length: 40 }).map((_, i) => ({
@@ -45,12 +42,12 @@ export const Board = ({ spaces, className }: BoardProps) => {
     }, [spaces]);
 
     return (
-        <div className={cn("relative", className)}>
-            {/* Aspect Ratio Container */}
-            <div className="relative w-full h-full bg-neo-bg border-4 border-black shadow-neo-lg">
+        <div className={cn("relative p-2", className)}>
+            {/* Board Physical Base */}
+            <div className="relative w-full h-full bg-neo-bg border-[6px] border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] rounded-sm overflow-hidden">
 
-                {/* The Grid */}
-                <div className="absolute inset-0 grid grid-cols-11 grid-rows-11 gap-0.5 bg-black p-0.5">
+                {/* The Grid - Tight gaps for printed look */}
+                <div className="absolute inset-0 grid grid-cols-11 grid-rows-11 gap-[1px] bg-black p-[2px]">
                     {safeSpaces.map((space) => {
                         const { row, col } = getGridPosition(space.index);
                         return (
@@ -78,19 +75,24 @@ export const Board = ({ spaces, className }: BoardProps) => {
                         );
                     })}
 
-                    {/* Center Logo Area */}
-                    <div className="row-start-2 row-end-11 col-start-2 col-end-11 bg-neo-bg flex items-center justify-center flex-col p-8 border-2 border-black m-0.5">
-                        <h1 className="text-4xl md:text-6xl font-black uppercase text-center tracking-tighter rotate-[-15deg] text-black drop-shadow-[4px_4px_0_rgba(0,0,0,0.2)]">
-                            Monopoly<br />
-                            <span className="text-neo-pink">Arena</span>
-                        </h1>
-                        <div className="mt-8 font-mono text-xs md:text-sm text-center opacity-60">
-                            REAL-TIME LLM BENCHMARK
+                    {/* Center Board Area */}
+                    <div className="row-start-2 row-end-11 col-start-2 col-end-11 bg-neo-bg flex items-center justify-center flex-col relative overflow-hidden">
+
+                        {/* Subtle Center Texture */}
+                        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--color-neo-black)_1px,_transparent_1px)] bg-[length:16px_16px]" />
+
+                        {/* Branding */}
+                        <div className="z-10 transform -rotate-6">
+                            <h1 className="text-4xl md:text-7xl font-black uppercase text-center tracking-tighter leading-[0.85] drop-shadow-[4px_4px_0_rgba(0,0,0,0.1)]">
+                                MONOPOLY<br />
+                                <span className="text-neo-pink text-5xl md:text-8xl block mt-2">ARENA</span>
+                            </h1>
+                            <div className="w-full h-1 bg-black mt-4 mb-2" />
                         </div>
                     </div>
                 </div>
 
-                {/* Token Layer (Absolute Overlay) */}
+                {/* Token Overlay */}
                 <TokenLayer />
             </div>
         </div>
