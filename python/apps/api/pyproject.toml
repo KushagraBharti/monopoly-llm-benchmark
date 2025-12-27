@@ -8,6 +8,7 @@ dependencies = [
     "monopoly-arena",
     "monopoly-engine",
     "fastapi>=0.127.0",
+    "jsonschema>=4.25.1",
     "orjson>=3.11.5",
     "pydantic>=2.12.5",
     "python-dotenv>=1.2.1",

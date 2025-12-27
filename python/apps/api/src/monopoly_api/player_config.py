@@ -11,6 +11,7 @@ DEFAULT_SYSTEM_PROMPT = (
     "You are playing Monopoly. Goal: win. "
     "Obey the rules and choose exactly one legal action using the provided tools."
 )
+EXPECTED_PLAYER_COUNT = 4
 
 
 def derive_model_display_name(model_id: str) -> str:
@@ -82,42 +83,52 @@ def build_player_configs(
     default_system_prompt = os.getenv("OPENROUTER_SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT)
 
     file_entries = load_player_config_file(config_path)
-    defaults = {
-        entry.get("player_id"): entry for entry in file_entries if entry.get("player_id")
-    }
+    if not file_entries:
+        raise ValueError(f"players.json missing or invalid at {config_path}.")
+    _validate_player_entries(file_entries, source=f"players.json ({config_path})")
+    defaults = {entry.get("player_id"): entry for entry in file_entries if entry.get("player_id")}
 
-    if requested_players:
-        configs: list[PlayerConfig] = []
-        for entry in requested_players:
-            merged = dict(defaults.get(entry.get("player_id"), {}))
-            merged.update(entry)
-            configs.append(
-                _normalize_player_entry(
-                    merged,
-                    default_model_id=default_model_id,
-                    default_system_prompt=default_system_prompt,
-                )
-            )
-        return configs
-
-    if file_entries:
+    if requested_players is not None:
+        _validate_player_entries(requested_players, source="run/start request")
+        overrides = {entry.get("player_id"): entry for entry in requested_players}
+        for player_id in overrides:
+            if player_id not in defaults:
+                raise ValueError(f"Unknown player_id '{player_id}' in run/start request.")
+        merged_entries: list[dict[str, Any]] = []
+        for entry in file_entries:
+            player_id = entry.get("player_id")
+            merged = dict(entry)
+            override = overrides.get(player_id)
+            if override:
+                merged.update(override)
+            merged_entries.append(merged)
         return [
             _normalize_player_entry(
                 entry,
                 default_model_id=default_model_id,
                 default_system_prompt=default_system_prompt,
             )
-            for entry in file_entries
+            for entry in merged_entries
         ]
 
-    fallback_ids = ["p1", "p2", "p3", "p4"]
     return [
-        PlayerConfig(
-            player_id=player_id,
-            name=f"Player {idx + 1}",
-            openrouter_model_id=default_model_id,
-            model_display_name=derive_model_display_name(default_model_id),
-            system_prompt=default_system_prompt,
+        _normalize_player_entry(
+            entry,
+            default_model_id=default_model_id,
+            default_system_prompt=default_system_prompt,
         )
-        for idx, player_id in enumerate(fallback_ids)
+        for entry in file_entries
     ]
+
+
+def _validate_player_entries(entries: list[dict[str, Any]], *, source: str) -> None:
+    if len(entries) != EXPECTED_PLAYER_COUNT:
+        raise ValueError(f"{source} must define exactly {EXPECTED_PLAYER_COUNT} players.")
+    seen: set[str] = set()
+    for entry in entries:
+        player_id = entry.get("player_id")
+        if not player_id:
+            raise ValueError(f"{source} contains a player without player_id.")
+        if player_id in seen:
+            raise ValueError(f"{source} contains duplicate player_id '{player_id}'.")
+        seen.add(player_id)

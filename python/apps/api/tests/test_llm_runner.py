@@ -20,6 +20,15 @@ def _make_player(player_id: str, name: str) -> PlayerConfig:
     )
 
 
+def _make_players() -> list[PlayerConfig]:
+    return [
+        _make_player("p1", "P1"),
+        _make_player("p2", "P2"),
+        _make_player("p3", "P3"),
+        _make_player("p4", "P4"),
+    ]
+
+
 def _tool_call_response(name: str, args: dict[str, Any]) -> OpenRouterResult:
     payload = {
         "id": "resp-1",
@@ -52,25 +61,79 @@ def _tool_call_response(name: str, args: dict[str, Any]) -> OpenRouterResult:
     )
 
 
+def _error_response(error_type: str, status_code: int | None = None) -> OpenRouterResult:
+    return OpenRouterResult(
+        ok=False,
+        status_code=status_code,
+        response_json=None,
+        error="error",
+        error_type=error_type,
+        request_id="req-err",
+    )
+
+
+def _extract_decision(messages: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for message in messages:
+        if message.get("role") != "user":
+            continue
+        try:
+            payload = json.loads(message.get("content", "{}"))
+        except json.JSONDecodeError:
+            continue
+        if "decision" in payload:
+            return payload["decision"]
+    return None
+
+
 class PolicyOpenRouter:
     def __init__(self, policy: Callable[[dict[str, Any]], tuple[str, dict[str, Any]]]) -> None:
         self._policy = policy
 
     async def create_chat_completion(self, *, messages: list[dict[str, Any]], **_: Any) -> OpenRouterResult:
-        decision = None
-        for message in messages:
-            if message.get("role") != "user":
-                continue
-            try:
-                payload = json.loads(message.get("content", "{}"))
-            except json.JSONDecodeError:
-                continue
-            if "decision" in payload:
-                decision = payload["decision"]
-                break
+        decision = _extract_decision(messages)
         if decision is None:
             return _tool_call_response("start_auction", {"space_index": 0})
         tool_name, args = self._policy(decision)
+        return _tool_call_response(tool_name, args)
+
+
+class ErrorOpenRouter:
+    def __init__(self, error_type: str, status_code: int | None = None) -> None:
+        self._error_type = error_type
+        self._status_code = status_code
+
+    async def create_chat_completion(self, *_: Any, **__: Any) -> OpenRouterResult:
+        return _error_response(self._error_type, self._status_code)
+
+
+class ScriptedOpenRouter:
+    def __init__(self) -> None:
+        self._decision_index: dict[str, int] = {}
+        self._decision_attempts: dict[str, int] = {}
+
+    async def create_chat_completion(self, *, messages: list[dict[str, Any]], **_: Any) -> OpenRouterResult:
+        decision = _extract_decision(messages)
+        if decision is None:
+            return _tool_call_response("start_auction", {"space_index": 0})
+        decision_id = decision["decision_id"]
+        if decision_id not in self._decision_index:
+            self._decision_index[decision_id] = len(self._decision_index)
+            self._decision_attempts[decision_id] = 0
+        attempt = self._decision_attempts[decision_id]
+        self._decision_attempts[decision_id] = attempt + 1
+
+        decision_number = self._decision_index[decision_id]
+        if decision_number == 0:
+            tool_name, args = _choose_buy_if_legal(decision)
+            return _tool_call_response(tool_name, args)
+        if decision_number == 1:
+            if attempt == 0:
+                return _tool_call_response("buy_property", {})
+            tool_name, args = _choose_buy_if_legal(decision)
+            return _tool_call_response(tool_name, args)
+        if decision_number == 2:
+            return _tool_call_response("buy_property", {})
+        tool_name, args = _choose_buy_if_legal(decision)
         return _tool_call_response(tool_name, args)
 
 
@@ -89,7 +152,7 @@ def _choose_buy_if_legal(decision: dict[str, Any]) -> tuple[str, dict[str, Any]]
 
 
 def test_retry_then_valid_action(tmp_path) -> None:
-    players = [_make_player("p1", "P1"), _make_player("p2", "P2")]
+    players = _make_players()
     run_files = init_run_files(tmp_path, "run-retry")
     call_state = {"count": 0}
 
@@ -107,7 +170,7 @@ def test_retry_then_valid_action(tmp_path) -> None:
         openrouter=fake,
         run_files=run_files,
         event_delay_s=0,
-        max_turns=4,
+        max_turns=8,
     )
     events: list[dict[str, Any]] = []
 
@@ -119,10 +182,21 @@ def test_retry_then_valid_action(tmp_path) -> None:
     decisions_path = run_files.decisions_path
     lines = decisions_path.read_text(encoding="utf-8").strip().splitlines()
     assert lines
-    decision_entry = json.loads(lines[0])
-    assert decision_entry["retry_used"] is True
-    assert decision_entry["fallback_used"] is False
-    assert len(decision_entry["attempts"]) == 2
+    entries = [json.loads(line) for line in lines if line.strip()]
+    decision_id = entries[0]["decision_id"]
+    decision_entries = [entry for entry in entries if entry["decision_id"] == decision_id]
+    started = next(entry for entry in decision_entries if entry["phase"] == "decision_started")
+    resolved = next(entry for entry in decision_entries if entry["phase"] == "decision_resolved")
+    assert started["request_start_ms"] is not None
+    assert resolved["retry_used"] is True
+    assert resolved["fallback_used"] is False
+    assert len(resolved["attempts"]) == 2
+    assert resolved["request_start_ms"] is not None
+    assert resolved["response_end_ms"] is not None
+    assert resolved["latency_ms"] is not None
+    assert resolved["applied"] is True
+    assert "LLM_DECISION_RESPONSE" in resolved["emitted_event_types"]
+    assert resolved["emitted_event_seq_start"] <= resolved["emitted_event_seq_end"]
 
     response_events = [event for event in events if event["type"] == "LLM_DECISION_RESPONSE"]
     assert response_events
@@ -130,7 +204,7 @@ def test_retry_then_valid_action(tmp_path) -> None:
 
 
 def test_invalid_twice_fallback(tmp_path) -> None:
-    players = [_make_player("p1", "P1"), _make_player("p2", "P2")]
+    players = _make_players()
     run_files = init_run_files(tmp_path, "run-fallback")
     def policy(_: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         return "buy_property", {}
@@ -143,7 +217,7 @@ def test_invalid_twice_fallback(tmp_path) -> None:
         openrouter=fake,
         run_files=run_files,
         event_delay_s=0,
-        max_turns=4,
+        max_turns=8,
     )
     events: list[dict[str, Any]] = []
 
@@ -152,10 +226,18 @@ def test_invalid_twice_fallback(tmp_path) -> None:
 
     asyncio.run(runner.run(on_event=on_event))
 
-    decision_entry = json.loads(run_files.decisions_path.read_text(encoding="utf-8").strip().splitlines()[0])
-    assert decision_entry["retry_used"] is True
-    assert decision_entry["fallback_used"] is True
-    assert decision_entry["fallback_reason"] == "invalid_tool_call"
+    entries = [
+        json.loads(line)
+        for line in run_files.decisions_path.read_text(encoding="utf-8").strip().splitlines()
+        if line.strip()
+    ]
+    decision_id = entries[0]["decision_id"]
+    resolved = next(entry for entry in entries if entry["decision_id"] == decision_id and entry["phase"] == "decision_resolved")
+    assert resolved["retry_used"] is True
+    assert resolved["fallback_used"] is True
+    assert resolved["fallback_reason"] == "invalid_action"
+    assert resolved["applied"] is True
+    assert "LLM_DECISION_RESPONSE" in resolved["emitted_event_types"]
 
     response_events = [event for event in events if event["type"] == "LLM_DECISION_RESPONSE"]
     assert response_events
@@ -164,7 +246,7 @@ def test_invalid_twice_fallback(tmp_path) -> None:
 
 
 def test_two_llms_deterministic_replay() -> None:
-    players = [_make_player("p1", "P1"), _make_player("p2", "P2")]
+    players = _make_players()
     policy_client = PolicyOpenRouter(_choose_buy_if_legal)
 
     async def run_once() -> list[dict[str, Any]]:
@@ -187,3 +269,166 @@ def test_two_llms_deterministic_replay() -> None:
     events_a = asyncio.run(run_once())
     events_b = asyncio.run(run_once())
     assert events_a == events_b
+
+
+def test_openrouter_http_429_fallback_reason(tmp_path) -> None:
+    players = _make_players()
+    run_files = init_run_files(tmp_path, "run-http-429")
+    runner = LlmRunner(
+        seed=123,
+        players=players,
+        run_id="run-http-429",
+        openrouter=ErrorOpenRouter("http_429", 429),
+        run_files=run_files,
+        event_delay_s=0,
+        max_turns=8,
+    )
+    events: list[dict[str, Any]] = []
+
+    async def on_event(event: dict[str, Any]) -> None:
+        events.append(event)
+
+    asyncio.run(runner.run(on_event=on_event))
+
+    entries = [
+        json.loads(line)
+        for line in run_files.decisions_path.read_text(encoding="utf-8").strip().splitlines()
+        if line.strip()
+    ]
+    resolved = next(entry for entry in entries if entry["phase"] == "decision_resolved")
+    assert resolved["fallback_reason"] == "openrouter_http_429"
+
+    response_events = [event for event in events if event["type"] == "LLM_DECISION_RESPONSE"]
+    assert response_events
+    assert response_events[0]["payload"]["error"] == "fallback:openrouter_http_429"
+
+
+def test_openrouter_http_5xx_fallback_reason(tmp_path) -> None:
+    players = _make_players()
+    run_files = init_run_files(tmp_path, "run-http-5xx")
+    runner = LlmRunner(
+        seed=123,
+        players=players,
+        run_id="run-http-5xx",
+        openrouter=ErrorOpenRouter("http_5xx", 503),
+        run_files=run_files,
+        event_delay_s=0,
+        max_turns=8,
+    )
+    asyncio.run(runner.run())
+
+    entries = [
+        json.loads(line)
+        for line in run_files.decisions_path.read_text(encoding="utf-8").strip().splitlines()
+        if line.strip()
+    ]
+    resolved = next(entry for entry in entries if entry["phase"] == "decision_resolved")
+    assert resolved["fallback_reason"] == "openrouter_http_5xx"
+
+
+def test_openrouter_http_4xx_fallback_reason(tmp_path) -> None:
+    players = _make_players()
+    run_files = init_run_files(tmp_path, "run-http-4xx")
+    runner = LlmRunner(
+        seed=123,
+        players=players,
+        run_id="run-http-4xx",
+        openrouter=ErrorOpenRouter("http_4xx", 401),
+        run_files=run_files,
+        event_delay_s=0,
+        max_turns=8,
+    )
+    events: list[dict[str, Any]] = []
+
+    async def on_event(event: dict[str, Any]) -> None:
+        events.append(event)
+
+    asyncio.run(runner.run(on_event=on_event))
+
+    entries = [
+        json.loads(line)
+        for line in run_files.decisions_path.read_text(encoding="utf-8").strip().splitlines()
+        if line.strip()
+    ]
+    resolved = next(entry for entry in entries if entry["phase"] == "decision_resolved")
+    assert resolved["fallback_used"] is True
+    assert resolved["fallback_reason"] == "openrouter_http_4xx"
+
+    response_events = [event for event in events if event["type"] == "LLM_DECISION_RESPONSE"]
+    assert response_events
+    assert response_events[0]["payload"]["valid"] is False
+    assert response_events[0]["payload"]["error"].startswith("fallback:")
+
+
+def test_openrouter_network_error_fallback_reason(tmp_path) -> None:
+    players = _make_players()
+    run_files = init_run_files(tmp_path, "run-network-error")
+    runner = LlmRunner(
+        seed=123,
+        players=players,
+        run_id="run-network-error",
+        openrouter=ErrorOpenRouter("network_error"),
+        run_files=run_files,
+        event_delay_s=0,
+        max_turns=8,
+    )
+    asyncio.run(runner.run())
+
+    entries = [
+        json.loads(line)
+        for line in run_files.decisions_path.read_text(encoding="utf-8").strip().splitlines()
+        if line.strip()
+    ]
+    resolved = next(entry for entry in entries if entry["phase"] == "decision_resolved")
+    assert resolved["fallback_reason"] == "openrouter_network_error"
+
+
+def test_decisions_jsonl_pairs_and_applied(tmp_path) -> None:
+    players = _make_players()
+    run_files = init_run_files(tmp_path, "run-sample")
+    runner = LlmRunner(
+        seed=2024,
+        players=players,
+        run_id="run-sample",
+        openrouter=ScriptedOpenRouter(),
+        run_files=run_files,
+        event_delay_s=0,
+        max_turns=40,
+    )
+    asyncio.run(runner.run())
+
+    entries = [
+        json.loads(line)
+        for line in run_files.decisions_path.read_text(encoding="utf-8").strip().splitlines()
+        if line.strip()
+    ]
+    decision_order: list[str] = []
+    for entry in entries:
+        if entry["phase"] != "decision_started":
+            continue
+        decision_id = entry["decision_id"]
+        if decision_id not in decision_order:
+            decision_order.append(decision_id)
+    assert len(decision_order) >= 3
+
+    resolved_by_id = {
+        entry["decision_id"]: entry
+        for entry in entries
+        if entry["phase"] == "decision_resolved"
+    }
+    for decision_id in decision_order[:3]:
+        started = next(
+            entry for entry in entries if entry["decision_id"] == decision_id and entry["phase"] == "decision_started"
+        )
+        resolved = resolved_by_id[decision_id]
+        assert started["decision_id"] == resolved["decision_id"]
+        assert resolved["applied"] is True
+        assert "LLM_DECISION_RESPONSE" in resolved["emitted_event_types"]
+
+    first_id, second_id, third_id = decision_order[:3]
+    assert resolved_by_id[first_id]["retry_used"] is False
+    assert resolved_by_id[first_id]["fallback_used"] is False
+    assert resolved_by_id[second_id]["retry_used"] is True
+    assert resolved_by_id[second_id]["fallback_used"] is False
+    assert resolved_by_id[third_id]["retry_used"] is True
+    assert resolved_by_id[third_id]["fallback_used"] is True

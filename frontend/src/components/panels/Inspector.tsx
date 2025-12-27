@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGameStore } from '../../state/store';
-import { cn } from '../ui/NeoPrimitive';
+import { NeoBadge, cn } from '../ui/NeoPrimitive';
 
 type Tab = 'snapshot' | 'last' | 'stream' | 'raw';
 
@@ -81,6 +81,11 @@ export const Inspector = () => {
               <span>SCHEMA: {snapshot?.schema_version ?? '1.0'}</span>
             </div>
           </div>
+          {runStatus.players && runStatus.players.length > 0 && runStatus.players.length !== 4 && (
+            <NeoBadge variant="warning" className="text-[9px] py-0 px-2">
+              PLAYERS {runStatus.players.length}/4
+            </NeoBadge>
+          )}
           <button
             onClick={() => setIsOpen(false)}
             className="w-8 h-8 flex items-center justify-center bg-neo-red text-white font-bold hover:bg-red-400 transition-colors"

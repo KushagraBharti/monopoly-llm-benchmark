@@ -63,7 +63,10 @@ Open `http://127.0.0.1:8000/health` and confirm `ok true`.
 Backend provides a WebSocket endpoint at `/ws`. Frontend connects to it for real-time events and state snapshots.
 
 ## Configuration
-Create a `.env` file in the repo root or in `python/apps/api` depending on your local setup.
+Env files are loaded in this priority order (later overrides earlier, but OS env always wins):
+1) repo root `.env`
+2) `python/.env`
+3) `python/apps/api/.env`
 
 ### Required
 - `OPENROUTER_API_KEY`
@@ -86,12 +89,12 @@ Create a `.env` file in the repo root or in `python/apps/api` depending on your 
 ## Run outputs and dataset format
 Each run creates a folder under `runs/RUN_ID/`.
 - `events.jsonl`: canonical append-only event stream
-- `decisions.jsonl`: decision inputs, prompts, model outputs, tool calls, validation results, retries, latencies, token usage when available
+- `decisions.jsonl`: append-only log with `phase` entries (`decision_started`, `decision_resolved`) per decision, including epoch-ms timing fields (`request_start_ms`, `response_end_ms`, `latency_ms`), prompts, model outputs, tool calls, validation results, and retries
 - state snapshots: periodic full snapshots for resync and replay support
 - `summary.json`: winner, turns, bankruptcies, cost estimates, key metrics
 
 ## Player model configuration
-Default player models live in `python/apps/api/src/monopoly_api/config/players.json`. You can swap models by editing that file or by providing `players` in the `/run/start` request (each entry can include `openrouter_model_id` and `system_prompt`).
+Default player models live in `python/apps/api/src/monopoly_api/config/players.json`. Exactly 4 players are required for LLM runs; `/run/start` requests must include 4 players if provided, and overrides only apply by `player_id` from that file. Each entry can include `openrouter_model_id` and `system_prompt`.
 
 ## Benchmarking goals
 1. Compare win rate across models and prompts under identical seeds and settings

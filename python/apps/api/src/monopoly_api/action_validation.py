@@ -1,100 +1,44 @@
 from __future__ import annotations
 
-from typing import Any, Literal, Union
+from functools import lru_cache
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationError
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
+from jsonschema.validators import validator_for
 
-
-class EmptyArgs(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class SpaceIndexArgs(BaseModel):
-    space_index: int = Field(ge=0, le=39)
-
-    model_config = ConfigDict(extra="forbid")
+from monopoly_api.schema_registry import get_schema, get_schema_registry
 
 
-class NoopArgs(BaseModel):
-    reason: str
-
-    model_config = ConfigDict(extra="forbid")
-
-
-class ActionBase(BaseModel):
-    schema_version: Literal["v1"]
-    decision_id: str
-    public_message: str | None = None
-    private_thought: str | None = None
-
-    model_config = ConfigDict(extra="forbid")
+@lru_cache(maxsize=1)
+def _load_action_schema() -> dict[str, Any]:
+    return get_schema("action.schema.json")
 
 
-class RollDiceAction(ActionBase):
-    action: Literal["ROLL_DICE"]
-    args: EmptyArgs
+@lru_cache(maxsize=1)
+def _action_validator() -> Draft202012Validator:
+    schema = _load_action_schema()
+    validator_cls = validator_for(schema)
+    validator_cls.check_schema(schema)
+    return validator_cls(schema, registry=get_schema_registry())
 
 
-class BuyPropertyAction(ActionBase):
-    action: Literal["BUY_PROPERTY"]
-    args: SpaceIndexArgs
-
-
-class DeclinePropertyAction(ActionBase):
-    action: Literal["DECLINE_PROPERTY"]
-    args: SpaceIndexArgs
-
-
-class StartAuctionAction(ActionBase):
-    action: Literal["START_AUCTION"]
-    args: SpaceIndexArgs
-
-
-class PayBailAction(ActionBase):
-    action: Literal["PAY_BAIL"]
-    args: EmptyArgs
-
-
-class UseJailCardAction(ActionBase):
-    action: Literal["USE_JAIL_CARD"]
-    args: EmptyArgs
-
-
-class RollForDoublesAction(ActionBase):
-    action: Literal["ROLL_FOR_DOUBLES"]
-    args: EmptyArgs
-
-
-class EndTurnAction(ActionBase):
-    action: Literal["END_TURN"]
-    args: EmptyArgs
-
-
-class NoopAction(ActionBase):
-    action: Literal["NOOP"]
-    args: NoopArgs
-
-
-ActionUnion = Union[
-    RollDiceAction,
-    BuyPropertyAction,
-    DeclinePropertyAction,
-    StartAuctionAction,
-    PayBailAction,
-    UseJailCardAction,
-    RollForDoublesAction,
-    EndTurnAction,
-    NoopAction,
-]
-
-
-class ActionRoot(RootModel[ActionUnion]):
-    pass
+def _format_error(error: ValidationError) -> str:
+    if error.path:
+        path = "$"
+        for part in error.path:
+            if isinstance(part, int):
+                path += f"[{part}]"
+            else:
+                path += f".{part}"
+    else:
+        path = "$"
+    return f"{path}: {error.message}"
 
 
 def validate_action_payload(action: dict[str, Any]) -> tuple[bool, list[str]]:
-    try:
-        ActionRoot.model_validate(action)
-    except ValidationError as exc:
-        return False, [f"{err['loc']}: {err['msg']}" for err in exc.errors()]
+    validator = _action_validator()
+    errors = [_format_error(err) for err in validator.iter_errors(action)]
+    if errors:
+        return False, errors
     return True, []

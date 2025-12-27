@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, HTTPException
 from fastapi import WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -48,10 +48,15 @@ class StartRunRequest(BaseModel):
 async def run_start(body: StartRunRequest) -> dict:
     seed = body.seed if body.seed is not None else int(time.time())
     requested_players = [player.model_dump(exclude_none=True) for player in body.players] if body.players else None
-    players = build_player_configs(
-        requested_players=requested_players,
-        config_path=settings.players_config_path,
-    )
+    try:
+        players = build_player_configs(
+            requested_players=requested_players,
+            config_path=settings.players_config_path,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if len(players) != 4:
+        raise HTTPException(status_code=400, detail="Exactly 4 players are required for LLM runs.")
     run_id = await run_manager.start_run(seed=seed, players=players)
     return {"run_id": run_id}
 

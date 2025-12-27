@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,6 +35,13 @@ class OpenRouterClient:
         self._timeout_s = timeout_s
         self._max_retries = max_retries
         self._extra_headers = extra_headers or {}
+        self._client = httpx.AsyncClient(timeout=httpx.Timeout(self._timeout_s))
+        self._rng = random.Random(0)
+
+    def _backoff_delay(self, attempt: int) -> float:
+        base = 0.5
+        jitter = self._rng.random() * 0.1
+        return base * (2**attempt) + jitter
 
     async def create_chat_completion(
         self,
@@ -73,22 +81,32 @@ class OpenRouterClient:
             **self._extra_headers,
         }
         url = f"{self._base_url}/chat/completions"
-        timeout = httpx.Timeout(self._timeout_s)
-
         last_error: OpenRouterResult | None = None
         for attempt in range(self._max_retries + 1):
             try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    response = await client.post(url, headers=headers, json=payload)
+                response = await self._client.post(url, headers=headers, json=payload)
                 request_id = response.headers.get("x-request-id") or response.headers.get("openrouter-request-id")
                 if response.status_code >= 400:
+                    status_code = response.status_code
+                    if status_code == 429:
+                        error_type = "http_429"
+                        retryable = True
+                    elif 500 <= status_code < 600:
+                        error_type = "http_5xx"
+                        retryable = True
+                    else:
+                        error_type = "http_4xx"
+                        retryable = False
+                    if retryable and attempt < self._max_retries:
+                        await asyncio.sleep(self._backoff_delay(attempt))
+                        continue
                     error_text = response.text.strip()
                     return OpenRouterResult(
                         ok=False,
-                        status_code=response.status_code,
+                        status_code=status_code,
                         response_json=None,
-                        error=error_text or f"HTTP {response.status_code}",
-                        error_type="http_error",
+                        error=error_text or f"HTTP {status_code}",
+                        error_type=error_type,
                         request_id=request_id,
                     )
                 try:
@@ -122,7 +140,7 @@ class OpenRouterClient:
                     request_id=None,
                 )
                 if attempt < self._max_retries:
-                    await asyncio.sleep(0.2 * (attempt + 1))
+                    await asyncio.sleep(self._backoff_delay(attempt))
                     continue
                 return last_error
 
@@ -134,3 +152,6 @@ class OpenRouterClient:
             error_type="unknown",
             request_id=None,
         )
+
+    async def aclose(self) -> None:
+        await self._client.aclose()

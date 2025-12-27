@@ -204,7 +204,16 @@ export const formatEventCard = (event: Event): EventCard => {
         badges: [{ text: 'LLM', tone: 'info' }],
         isMinor: true,
       };
-    case 'LLM_DECISION_RESPONSE':
+    case 'LLM_DECISION_RESPONSE': {
+      const error = event.payload.error;
+      const isFallback = typeof error === 'string' && error.startsWith('fallback:');
+      const badges: EventBadge[] = [];
+      if (!event.payload.valid) {
+        badges.push({ text: 'INVALID', tone: 'danger' });
+      }
+      if (isFallback) {
+        badges.push({ text: 'FALLBACK', tone: 'warning' });
+      }
       return {
         ...base,
         icon: event.payload.valid ? 'OK' : '!!',
@@ -214,10 +223,9 @@ export const formatEventCard = (event: Event): EventCard => {
           { kind: 'player', playerId: event.payload.player_id },
           { kind: 'text', value: `chose ${event.payload.action_name}` },
         ],
-        badges: event.payload.valid
-          ? []
-          : [{ text: 'INVALID', tone: 'danger' }],
+        badges,
       };
+    }
     case 'LLM_PUBLIC_MESSAGE':
       return {
         ...base,

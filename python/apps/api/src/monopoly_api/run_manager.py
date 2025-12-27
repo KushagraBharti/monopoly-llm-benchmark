@@ -36,6 +36,8 @@ class RunManager:
         async with self._lock:
             if self._runner_task is not None:
                 await self._stop_run_locked()
+            if len(players) != 4:
+                raise ValueError("Exactly 4 players are required for LLM runs.")
             run_id = self._generate_run_id(seed, players)
             self._run_id = run_id
             self._telemetry = init_run_files(self._runs_dir, run_id)
