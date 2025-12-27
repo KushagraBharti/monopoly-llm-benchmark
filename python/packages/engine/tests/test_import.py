@@ -1,12 +1,9 @@
 """Smoke tests for monopoly_engine module."""
-import monopoly_engine
+from monopoly_engine import Engine
 
 
 def test_import_monopoly_engine() -> None:
     """Verify monopoly_engine can be imported."""
-    assert monopoly_engine is not None
-
-
-def test_hello_function() -> None:
-    """Verify hello function returns correct string."""
-    assert monopoly_engine.hello() == "Hello from monopoly_engine!"
+    players = [{"player_id": "p1", "name": "P1"}]
+    engine = Engine(seed=1, players=players, run_id="run-test", max_turns=1)
+    assert engine.get_snapshot()["run_id"] == "run-test"

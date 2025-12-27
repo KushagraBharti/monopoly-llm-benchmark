@@ -11,8 +11,8 @@ def test_import_all_packages() -> None:
     assert monopoly_telemetry is not None
 
 
-def test_hello_functions() -> None:
-    """Verify all hello functions work."""
-    assert "monopoly_engine" in monopoly_engine.hello()
-    assert "monopoly_arena" in monopoly_arena.hello()
-    assert "monopoly_telemetry" in monopoly_telemetry.hello()
+def test_engine_constructor_available() -> None:
+    """Verify engine entry points are available."""
+    engine = monopoly_engine.Engine(seed=1, players=[{"player_id": "p1", "name": "P1"}], run_id="run")
+    snapshot = engine.get_snapshot()
+    assert snapshot["run_id"] == "run"
