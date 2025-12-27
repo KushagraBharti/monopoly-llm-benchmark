@@ -29,7 +29,7 @@ class MockRunner:
         players: list[dict[str, Any]],
         run_id: str,
         *,
-        max_turns: int = 30,
+        max_turns: int = 200,
         event_delay_s: float = 0.25,
         start_ts_ms: int = 0,
         ts_step_ms: int = 250,
@@ -77,10 +77,36 @@ class MockRunner:
 
     def _event_stream(self) -> Iterable[dict[str, Any]]:
         while True:
-            _, events, _, _ = self._engine.advance_until_decision(max_steps=1)
+            _, events, decision, _ = self._engine.advance_until_decision(max_steps=1)
             if not events:
                 break
             for event in events:
                 yield event
+            if decision is not None:
+                action = self._choose_action(decision)
+                _, action_events, _, _ = self._engine.apply_action(action)
+                for event in action_events:
+                    yield event
+                if self._engine.is_game_over():
+                    break
+                continue
             if self._engine.is_game_over():
                 break
+
+    @staticmethod
+    def _choose_action(decision: dict[str, Any]) -> dict[str, Any]:
+        legal_actions = {entry["action"] for entry in decision.get("legal_actions", [])}
+        action_name = "BUY_PROPERTY" if "BUY_PROPERTY" in legal_actions else "START_AUCTION"
+        state = decision.get("state", {})
+        active_player_id = state.get("active_player_id")
+        space_index = 0
+        for player in state.get("players", []):
+            if player.get("player_id") == active_player_id:
+                space_index = int(player.get("position", 0))
+                break
+        return {
+            "schema_version": "v1",
+            "decision_id": decision["decision_id"],
+            "action": action_name,
+            "args": {"space_index": space_index},
+        }
