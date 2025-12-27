@@ -43,16 +43,38 @@ function App() {
             Monopoly <br /><span className="text-neo-pink block">Arena</span>
           </h1>
 
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5 mt-2">
+            {/* Connection Status */}
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-bold uppercase text-gray-500">System</span>
-              <NeoBadge variant={isConnected ? 'success' : 'error'} className={cn(!isConnected && "animate-pulse")}>
+              <span className="text-[10px] font-bold uppercase text-gray-500 flex items-center gap-1">
+                <span className={cn(
+                  "w-2 h-2 rounded-full",
+                  isConnected ? "bg-neo-green" : "bg-neo-pink animate-pulse"
+                )} />
+                Connection
+              </span>
+              <NeoBadge
+                variant={isConnected ? 'success' : 'error'}
+                className={cn(!isConnected && "animate-pulse")}
+              >
                 {isConnected ? 'ONLINE' : 'OFFLINE'}
               </NeoBadge>
             </div>
+
+            {/* Run Status */}
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-bold uppercase text-gray-500">Run State</span>
-              <NeoBadge variant={runStatus === 'Running' ? 'info' : (runStatus === 'Complete' ? 'warning' : 'neutral')}>
+              <span className="text-[10px] font-bold uppercase text-gray-500">
+                Run Status
+              </span>
+              <NeoBadge
+                variant={
+                  runStatus === 'Running' ? 'info' :
+                    runStatus === 'Complete' ? 'success' :
+                      'neutral'
+                }
+              >
+                {runStatus === 'Complete' && '🏆 '}
+                {runStatus === 'Running' && '▶ '}
                 {runStatus.toUpperCase()}
               </NeoBadge>
             </div>

@@ -1,17 +1,19 @@
 import { useGameStore } from '../../state/store';
-import { GROUP_COLORS, getPlayerColor } from '../board/constants';
+import { getPlayerColor, getGroupColor } from '../board/constants';
 import { cn, NeoCard } from '../ui/NeoPrimitive';
 
 export const OwnershipPanel = () => {
     const snapshot = useGameStore((state) => state.snapshot);
     const board = snapshot?.board || [];
 
-    // Grouping
-    const textGroups = ["Brown", "LightBlue", "Pink", "Orange", "Red", "Yellow", "Green", "Blue"];
-    const otherGroups = ["Railroad", "Utility"];
+    // Use normalized group names (match backend format)
+    const propertyGroups = ["BROWN", "LIGHT_BLUE", "PINK", "ORANGE", "RED", "YELLOW", "GREEN", "DARK_BLUE"];
+    const specialGroups = ["RAILROAD", "UTILITY"];
 
-    // Helper to get tiles for a group
-    const getTiles = (groupName: string) => board.filter(t => t.group === groupName);
+    // Helper to get tiles for a group (case-insensitive matching)
+    const getTiles = (groupName: string) => board.filter(t =>
+        t.group?.toUpperCase().replace(/\s+/g, '_') === groupName
+    );
 
     // Mini Tile Component
     const MiniTile = ({ tile }: { tile: any }) => {
@@ -25,10 +27,10 @@ export const OwnershipPanel = () => {
                 )}
                 title={`${tile.name} ${tile.owner_id ? `(Owned by ${tile.owner_id})` : ''}`}
             >
-                {/* Header */}
+                {/* Header - use getGroupColor for normalized lookup */}
                 <div
                     className="h-3 w-full border-b border-black"
-                    style={{ backgroundColor: GROUP_COLORS[tile.group!] || 'white' }}
+                    style={{ backgroundColor: getGroupColor(tile.group) }}
                 />
 
                 {/* Body */}
@@ -64,9 +66,9 @@ export const OwnershipPanel = () => {
         <NeoCard className="flex flex-col gap-2 p-2 max-h-full overflow-y-auto">
             <h3 className="text-xs font-bold uppercase border-b-2 border-black pb-1 mb-1">Property Deeds</h3>
 
-            {/* Standard Groups */}
+            {/* Standard Property Groups */}
             <div className="space-y-2">
-                {textGroups.map(group => {
+                {propertyGroups.map((group: string) => {
                     const tiles = getTiles(group);
                     if (tiles.length === 0) return null;
                     return (
@@ -79,9 +81,9 @@ export const OwnershipPanel = () => {
 
             <div className="h-px bg-black/20 my-1" />
 
-            {/* Special Groups */}
+            {/* Special Groups (Railroads & Utilities) */}
             <div className="flex flex-wrap gap-2 justify-center">
-                {otherGroups.map(group => {
+                {specialGroups.map((group: string) => {
                     const tiles = getTiles(group);
                     if (tiles.length === 0) return null;
                     return (
