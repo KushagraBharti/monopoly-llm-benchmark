@@ -17,6 +17,7 @@ def _make_player(player_id: str, name: str) -> PlayerConfig:
         openrouter_model_id=model_id,
         model_display_name=derive_model_display_name(model_id),
         system_prompt=DEFAULT_SYSTEM_PROMPT,
+        reasoning=None,
     )
 
 
@@ -173,4 +174,3 @@ def test_prompt_artifacts_written_for_normal_retry_and_fallback(tmp_path) -> Non
     assert parsed["decision_id"] == second_id
     assert "final_action" in parsed
     assert "validation_errors" in parsed
-

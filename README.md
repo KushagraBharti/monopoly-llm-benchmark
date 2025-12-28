@@ -57,11 +57,6 @@ uv run uvicorn monopoly_api.main:app --reload
 ```
 Expected: API served at `http://127.0.0.1:8000`.
 
-### Headless (no UI)
-```bash
-python -m monopoly_arena.run --seed 123 --max-turns 20
-```
-
 ## Health check
 Open `http://127.0.0.1:8000/health` and confirm `ok true`.
 
@@ -89,7 +84,6 @@ Env files are loaded in this priority order (later overrides earlier, but OS env
 
 ### Optional
 - `OPENROUTER_MODEL`
-- `OPENROUTER_SYSTEM_PROMPT`
 - `PLAYERS_CONFIG_PATH` (defaults to `python/apps/api/src/monopoly_api/config/players.json`)
 - `RUNS_DIR`
 
@@ -112,6 +106,7 @@ Each run creates a folder under `runs/RUN_ID/`.
 
 ## Player model configuration
 Default player models live in `python/apps/api/src/monopoly_api/config/players.json`. Exactly 4 players are required for LLM runs; `/run/start` requests must include 4 players if provided, and overrides only apply by `player_id` from that file. Each entry can include `openrouter_model_id` and `system_prompt`.
+Optional per-player `reasoning.effort` may be set to `low`, `medium`, or `high` and will be passed through to OpenRouter.
 
 ## Benchmarking goals
 1. Compare win rate across models and prompts under identical seeds and settings

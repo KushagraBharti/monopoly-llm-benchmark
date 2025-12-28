@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from fastapi import FastAPI, WebSocket, HTTPException
+from fastapi import FastAPI, WebSocket, HTTPException, Query
 from fastapi import WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -71,9 +71,34 @@ async def run_stop() -> dict:
     return {"ok": True}
 
 
+@app.post("/run/pause")
+async def run_pause() -> dict:
+    await run_manager.pause()
+    return {"ok": True}
+
+
+@app.post("/run/resume")
+async def run_resume() -> dict:
+    await run_manager.resume()
+    return {"ok": True}
+
+
 @app.get("/run/status")
 def run_status() -> dict:
     return run_manager.get_status()
+
+
+@app.get("/run/decisions/recent")
+def run_decisions_recent(limit: int = Query(50, ge=1, le=200)) -> dict:
+    return {"decisions": run_manager.get_recent_decisions(limit)}
+
+
+@app.get("/run/decision/{decision_id}")
+def run_decision(decision_id: str) -> dict:
+    bundle = run_manager.get_decision_bundle(decision_id)
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="Decision not found")
+    return bundle
 
 
 @app.websocket("/ws")

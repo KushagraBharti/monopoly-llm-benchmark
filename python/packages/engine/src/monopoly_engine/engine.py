@@ -133,7 +133,11 @@ class Engine:
                 self._build_event(
                     "LLM_PUBLIC_MESSAGE",
                     self._actor_player(player_id),
-                    {"player_id": player_id, "message": action["public_message"]},
+                    {
+                        "player_id": player_id,
+                        "message": action["public_message"],
+                        "decision_id": decision["decision_id"],
+                    },
                     turn_index=self.state.turn_index,
                 )
             )
@@ -142,7 +146,11 @@ class Engine:
                 self._build_event(
                     "LLM_PRIVATE_THOUGHT",
                     self._actor_player(player_id),
-                    {"player_id": player_id, "thought": action["private_thought"]},
+                    {
+                        "player_id": player_id,
+                        "thought": action["private_thought"],
+                        "decision_id": decision["decision_id"],
+                    },
                     turn_index=self.state.turn_index,
                 )
             )

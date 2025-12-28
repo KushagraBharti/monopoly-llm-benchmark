@@ -531,7 +531,8 @@
           "required": ["player_id", "message"],
           "properties": {
             "player_id": { "type": "string" },
-            "message": { "type": "string" }
+            "message": { "type": "string" },
+            "decision_id": { "type": "string" }
           }
         }
       }
@@ -573,7 +574,8 @@
           "required": ["player_id", "thought"],
           "properties": {
             "player_id": { "type": "string" },
-            "thought": { "type": "string" }
+            "thought": { "type": "string" },
+            "decision_id": { "type": "string" }
           }
         }
       }

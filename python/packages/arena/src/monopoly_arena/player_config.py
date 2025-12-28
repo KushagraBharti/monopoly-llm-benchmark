@@ -29,6 +29,7 @@ Rules:
 """
 DEFAULT_SYSTEM_PROMPT = SYSTEM_PROMPT_V1
 EXPECTED_PLAYER_COUNT = 4
+ALLOWED_REASONING_EFFORT = {"low", "medium", "high"}
 
 
 def derive_model_display_name(model_id: str) -> str:
@@ -44,14 +45,18 @@ class PlayerConfig:
     openrouter_model_id: str
     model_display_name: str
     system_prompt: str
+    reasoning: dict[str, Any] | None
 
     def to_status(self) -> dict[str, Any]:
-        return {
+        payload = {
             "player_id": self.player_id,
             "name": self.name,
             "openrouter_model_id": self.openrouter_model_id,
             "model_display_name": self.model_display_name,
         }
+        if self.reasoning is not None:
+            payload["reasoning"] = self.reasoning
+        return payload
 
 
 def _normalize_player_entry(
@@ -66,12 +71,14 @@ def _normalize_player_entry(
     name = entry.get("name") or player_id
     model_id = entry.get("openrouter_model_id") or default_model_id
     system_prompt = entry.get("system_prompt") or default_system_prompt
+    reasoning = _normalize_reasoning(entry.get("reasoning"))
     return PlayerConfig(
         player_id=player_id,
         name=name,
         openrouter_model_id=model_id,
         model_display_name=derive_model_display_name(model_id),
         system_prompt=system_prompt,
+        reasoning=reasoning,
     )
 
 
@@ -97,7 +104,7 @@ def build_player_configs(
     config_path: Path,
 ) -> list[PlayerConfig]:
     default_model_id = os.getenv("OPENROUTER_MODEL", "openai/gpt-oss-120b")
-    default_system_prompt = os.getenv("OPENROUTER_SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT)
+    default_system_prompt = DEFAULT_SYSTEM_PROMPT
 
     file_entries = load_player_config_file(config_path)
     if not file_entries:
@@ -149,4 +156,35 @@ def _validate_player_entries(entries: list[dict[str, Any]], *, source: str) -> N
         if player_id in seen:
             raise ValueError(f"{source} contains duplicate player_id '{player_id}'.")
         seen.add(player_id)
+        _validate_reasoning(entry.get("reasoning"), source=source, player_id=player_id)
 
+
+def _validate_reasoning(reasoning: Any, *, source: str, player_id: str) -> None:
+    if reasoning is None:
+        return
+    if not isinstance(reasoning, dict):
+        raise ValueError(f"{source} player '{player_id}' reasoning must be an object.")
+    if "effort" not in reasoning:
+        raise ValueError(f"{source} player '{player_id}' reasoning.effort is required.")
+    effort = reasoning.get("effort")
+    if effort not in ALLOWED_REASONING_EFFORT:
+        raise ValueError(
+            f"{source} player '{player_id}' reasoning.effort must be one of: "
+            f"{', '.join(sorted(ALLOWED_REASONING_EFFORT))}."
+        )
+
+
+def _normalize_reasoning(reasoning: Any) -> dict[str, Any] | None:
+    if reasoning is None:
+        return None
+    if not isinstance(reasoning, dict):
+        raise ValueError("Player reasoning must be an object.")
+    if "effort" not in reasoning:
+        raise ValueError("Player reasoning.effort is required.")
+    effort = reasoning.get("effort")
+    if effort not in ALLOWED_REASONING_EFFORT:
+        raise ValueError(
+            "Player reasoning.effort must be one of: "
+            f"{', '.join(sorted(ALLOWED_REASONING_EFFORT))}."
+        )
+    return dict(reasoning)

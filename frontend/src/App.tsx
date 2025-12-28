@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getApiBaseUrl, getWsUrl, WsClient } from '@/net/ws';
 import { useGameStore } from '@/state/store';
 import { Board } from '@/components/board/Board';
 import { PlayerPanel } from '@/components/panels/PlayerPanel';
 import { OwnershipPanel } from '@/components/panels/OwnershipPanel';
 import { EventFeed } from '@/components/feed/EventFeed';
+import { ChatFeed } from '@/components/feed/ChatFeed';
 import { GameControls } from '@/components/panels/GameControls';
 import { Inspector } from '@/components/panels/Inspector';
 import { DecisionOverlay } from '@/components/panels/DecisionOverlay';
@@ -26,12 +27,14 @@ function App() {
   const latestEvent = useGameStore((state) => state.events[0]);
   const apiBase = useMemo(() => getApiBaseUrl(), []);
   const highlightTimerRef = useRef<number | null>(null);
+  const [rightTab, setRightTab] = useState<'dev' | 'feed'>('dev');
 
   const runState = useMemo(() => {
+    if (runStatus.running && runStatus.paused) return 'PAUSED';
     if (runStatus.running) return 'RUNNING';
     if (runStatus.runId) return 'COMPLETE';
     return 'IDLE';
-  }, [runStatus.running, runStatus.runId]);
+  }, [runStatus.running, runStatus.paused, runStatus.runId]);
 
   const showAuction = false;
   const showTrade = false;
@@ -56,6 +59,7 @@ function App() {
         if (!res.ok) return;
         const data = (await res.json()) as {
           running: boolean;
+          paused?: boolean;
           run_id: string | null;
           turn_index: number | null;
           connected_clients: number;
@@ -64,11 +68,15 @@ function App() {
             name: string;
             model_display_name: string;
             openrouter_model_id: string;
+            reasoning?: {
+              effort?: string;
+            };
           }[];
         };
         if (!active) return;
         setRunStatus({
           running: data.running,
+          paused: data.paused ?? false,
           runId: data.run_id,
           turnIndex: data.turn_index ?? null,
           connectedClients: data.connected_clients,
@@ -106,7 +114,8 @@ function App() {
 
   // Status Derivation
   const isConnected = connection.status === 'connected';
-  const runBadgeLabel = runState === 'RUNNING' ? 'RUNNING' : runState === 'COMPLETE' ? 'COMPLETE' : 'IDLE';
+  const runBadgeLabel =
+    runState === 'RUNNING' ? 'RUNNING' : runState === 'PAUSED' ? 'PAUSED' : runState === 'COMPLETE' ? 'COMPLETE' : 'IDLE';
 
   return (
     <div className="h-screen w-screen bg-neo-bg text-black font-sans overflow-hidden flex relative">
@@ -144,6 +153,7 @@ function App() {
               <NeoBadge
                 variant={
                   runState === 'RUNNING' ? 'info' :
+                    runState === 'PAUSED' ? 'warning' :
                     runState === 'COMPLETE' ? 'success' :
                       'neutral'
                 }
@@ -194,14 +204,35 @@ function App() {
       {/* Right Sidebar: Feed */}
       <aside className="w-96 h-full border-l-4 border-black bg-white flex flex-col z-20 shadow-[-8px_0px_0px_0px_rgba(0,0,0,1)]">
         <div className="px-4 py-3 border-b-2 border-neo-bg flex justify-between items-center bg-gray-50">
-          <h2 className="text-lg font-black uppercase">Live Feed</h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRightTab('dev')}
+              className={cn(
+                "px-2 py-1 text-[10px] font-bold uppercase border-2 border-black",
+                rightTab === 'dev' ? "bg-black text-white" : "bg-white text-black shadow-neo-sm"
+              )}
+            >
+              Dev Mode
+            </button>
+            <button
+              type="button"
+              onClick={() => setRightTab('feed')}
+              className={cn(
+                "px-2 py-1 text-[10px] font-bold uppercase border-2 border-black",
+                rightTab === 'feed' ? "bg-black text-white" : "bg-white text-black shadow-neo-sm"
+              )}
+            >
+              Feed
+            </button>
+          </div>
           <div className="text-right leading-none">
             <span className="text-[10px] font-bold block text-gray-500">TURN</span>
             <span className="text-xl font-mono font-black">{snapshot?.turn_index ?? 0}</span>
           </div>
         </div>
         <div className="flex-1 min-h-0 relative">
-          <EventFeed />
+          {rightTab === 'dev' ? <EventFeed /> : <ChatFeed />}
         </div>
       </aside>
 

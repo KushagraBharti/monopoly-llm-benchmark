@@ -137,6 +137,7 @@ export interface LlmPublicMessageEvent extends BaseEvent {
   payload: {
     player_id: string;
     message: string;
+    decision_id?: string;
   };
 }
 
@@ -145,6 +146,7 @@ export interface LlmPrivateThoughtEvent extends BaseEvent {
   payload: {
     player_id: string;
     thought: string;
+    decision_id?: string;
   };
 }
 

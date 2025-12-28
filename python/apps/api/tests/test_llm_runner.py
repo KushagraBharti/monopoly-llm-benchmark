@@ -17,6 +17,7 @@ def _make_player(player_id: str, name: str) -> PlayerConfig:
         openrouter_model_id=model_id,
         model_display_name=derive_model_display_name(model_id),
         system_prompt=DEFAULT_SYSTEM_PROMPT,
+        reasoning=None,
     )
 
 
@@ -139,6 +140,19 @@ class ScriptedOpenRouter:
         if decision_number == 2:
             return _tool_call_response("BUY_PROPERTY", {})
         tool_name, args = _choose_buy_if_legal(decision, decision_focus)
+        return _tool_call_response(tool_name, args)
+
+
+class CaptureOpenRouter:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def create_chat_completion(self, *, model: str, messages: list[dict[str, Any]], **kwargs: Any) -> OpenRouterResult:
+        self.calls.append({"model": model, "messages": messages, "kwargs": kwargs})
+        payload = _extract_payload(messages)
+        if payload is None:
+            return _tool_call_response("START_AUCTION", {"space_index": 0})
+        tool_name, args = _choose_buy_if_legal(payload["decision"], payload["decision_focus"])
         return _tool_call_response(tool_name, args)
 
 
@@ -273,7 +287,8 @@ def test_prompt_payload_shape(tmp_path) -> None:
     assert payload is not None
     assert raw_payload is not None
     assert json.loads(raw_payload) == payload
-    assert set(payload.keys()) == {"schema_version", "full_state", "decision", "decision_focus"}
+    assert set(payload.keys()) <= {"schema_version", "full_state", "decision", "decision_focus", "llm"}
+    assert {"schema_version", "full_state", "decision", "decision_focus"}.issubset(payload.keys())
 
     full_state = payload["full_state"]
     assert "board" not in full_state
@@ -431,6 +446,111 @@ def test_openrouter_network_error_fallback_reason(tmp_path) -> None:
     ]
     resolved = next(entry for entry in entries if entry["phase"] == "decision_resolved")
     assert resolved["fallback_reason"] == "openrouter_network_error"
+
+
+def test_reasoning_effort_and_free_model_propagate(tmp_path) -> None:
+    players = _make_players()
+    reasoning = {"effort": "high", "budget_tokens": 1200}
+    players[0] = PlayerConfig(
+        player_id="p1",
+        name="P1",
+        openrouter_model_id="openai/gpt-oss-120b:free",
+        model_display_name=derive_model_display_name("openai/gpt-oss-120b:free"),
+        system_prompt=DEFAULT_SYSTEM_PROMPT,
+        reasoning=reasoning,
+    )
+    run_files = init_run_files(tmp_path, "run-reasoning")
+    openrouter = CaptureOpenRouter()
+    runner = LlmRunner(
+        seed=123,
+        players=players,
+        run_id="run-reasoning",
+        openrouter=openrouter,
+        run_files=run_files,
+        event_delay_s=0,
+        max_turns=20,
+    )
+    asyncio.run(runner.run())
+
+    assert openrouter.calls
+    matched_call = None
+    for call in openrouter.calls:
+        payload = _extract_payload(call["messages"])
+        if payload and payload.get("decision", {}).get("player_id") == "p1":
+            matched_call = call
+            break
+    assert matched_call is not None
+    assert matched_call["model"] == "openai/gpt-oss-120b:free"
+    assert matched_call["kwargs"].get("reasoning") == reasoning
+
+    entries = [
+        json.loads(line)
+        for line in run_files.decisions_path.read_text(encoding="utf-8").strip().splitlines()
+        if line.strip()
+    ]
+    decision_entry = next(
+        entry
+        for entry in entries
+        if entry["phase"] == "decision_started" and entry["player_id"] == "p1"
+    )
+    decision_id = decision_entry["decision_id"]
+    resolved = next(
+        entry
+        for entry in entries
+        if entry["phase"] == "decision_resolved" and entry["player_id"] == "p1"
+    )
+    assert resolved["openrouter_model_id"] == "openai/gpt-oss-120b:free"
+    assert resolved["model_display_name"] == "gpt-oss-120b:free"
+    assert resolved["reasoning"] == reasoning
+
+    prompt_payload = json.loads(
+        (run_files.prompts_dir / f"decision_{decision_id}_user.json").read_text(encoding="utf-8")
+    )
+    assert prompt_payload["llm"]["reasoning"] == reasoning
+
+
+def test_missing_reasoning_omits_openrouter_field(tmp_path) -> None:
+    players = _make_players()
+    run_files = init_run_files(tmp_path, "run-no-reasoning")
+    openrouter = CaptureOpenRouter()
+    runner = LlmRunner(
+        seed=123,
+        players=players,
+        run_id="run-no-reasoning",
+        openrouter=openrouter,
+        run_files=run_files,
+        event_delay_s=0,
+        max_turns=2,
+    )
+    asyncio.run(runner.run())
+
+    assert openrouter.calls
+    first_call = openrouter.calls[0]
+    assert "reasoning" not in first_call["kwargs"]
+
+
+def test_request_stop_still_emits_game_ended(tmp_path) -> None:
+    players = _make_players()
+    run_files = init_run_files(tmp_path, "run-stopped")
+    runner = LlmRunner(
+        seed=123,
+        players=players,
+        run_id="run-stopped",
+        openrouter=ScriptedOpenRouter(),
+        run_files=run_files,
+        event_delay_s=0,
+        max_turns=4,
+    )
+    events: list[dict[str, Any]] = []
+
+    async def on_event(event: dict[str, Any]) -> None:
+        events.append(event)
+
+    runner.request_stop("STOPPED")
+    asyncio.run(runner.run(on_event=on_event))
+
+    game_end = next(event for event in events if event["type"] == "GAME_ENDED")
+    assert game_end["payload"]["reason"] == "STOPPED"
 
 
 def test_decisions_jsonl_pairs_and_applied(tmp_path) -> None:

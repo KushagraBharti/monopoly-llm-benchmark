@@ -54,6 +54,12 @@ class DecisionOutcome:
     fallback_reason: str | None
 
 
+@dataclass(slots=True)
+class PendingResolution:
+    decision: dict[str, Any]
+    outcome: DecisionOutcome
+
+
 class LlmRunner:
     def __init__(
         self,
@@ -85,9 +91,28 @@ class LlmRunner:
         self._event_delay_s = event_delay_s
         self._space_key_by_index = build_space_key_by_index()
         self._prompt_memory = PromptMemory(space_key_by_index=self._space_key_by_index)
+        self._paused = False
+        self._resume_event = asyncio.Event()
+        self._resume_event.set()
+        self._pending_resolution: PendingResolution | None = None
 
     def request_stop(self, reason: str = "STOPPED") -> None:
         self._engine.request_stop(reason)
+        self.resume()
+
+    def pause(self) -> None:
+        self._paused = True
+        self._resume_event.clear()
+
+    def resume(self) -> None:
+        self._paused = False
+        self._resume_event.set()
+
+    def is_paused(self) -> bool:
+        return self._paused
+
+    def has_pending_resolution(self) -> bool:
+        return self._pending_resolution is not None
 
     def get_snapshot(self) -> dict[str, Any]:
         return self._engine.get_snapshot()
@@ -127,14 +152,25 @@ class LlmRunner:
                 self._run_files.write_decision(entry)
 
         while True:
+            await self._await_resume()
             _, events, decision, _ = self._engine.advance_until_decision(max_steps=1)
             if not events:
                 break
             for event in events:
+                await self._await_resume()
                 self._prompt_memory.update(event)
                 yield event
             if decision is not None:
+                await self._await_resume()
                 outcome = await self._resolve_decision(decision, write_decision)
+                self._pending_resolution = PendingResolution(decision=decision, outcome=outcome)
+                await self._await_resume()
+                pending = self._pending_resolution
+                self._pending_resolution = None
+                if pending is None:
+                    continue
+                decision = pending.decision
+                outcome = self._validate_outcome_after_pause(decision, pending.outcome)
                 _, action_events, _, _ = self._engine.apply_action(
                     outcome.action,
                     decision_meta=outcome.decision_meta,
@@ -154,6 +190,7 @@ class LlmRunner:
                 )
                 await write_decision(resolved_entry)
                 for event in action_events:
+                    await self._await_resume()
                     self._prompt_memory.update(event)
                     yield event
                 if self._engine.is_game_over():
@@ -292,11 +329,15 @@ class LlmRunner:
                 prompt_payload_raw=prompt_bundle.user_content,
             )
         )
+        openrouter_kwargs = (
+            {"reasoning": player_config.reasoning} if player_config.reasoning is not None else {}
+        )
         result = await self._openrouter.create_chat_completion(
             model=player_config.openrouter_model_id,
             messages=prompt_bundle.messages,
             tools=tools,
             tool_choice="required",
+            **openrouter_kwargs,
         )
         response_end_ms = _now_ms()
         attempt = self._attempt_from_response(
@@ -346,6 +387,7 @@ class LlmRunner:
                 messages=retry_bundle.messages,
                 tools=tools,
                 tool_choice="required",
+                **openrouter_kwargs,
             )
             retry_end_ms = _now_ms()
             retry_attempt = self._attempt_from_response(
@@ -513,6 +555,24 @@ class LlmRunner:
             fallback_reason=fallback_reason,
         )
 
+    def _validate_outcome_after_pause(
+        self,
+        decision: dict[str, Any],
+        outcome: DecisionOutcome,
+    ) -> DecisionOutcome:
+        errors = validate_decision_action(decision, outcome.action)
+        if not errors:
+            return outcome
+        fallback_action = self._fallback_action(decision)
+        return self._build_decision_outcome(
+            decision=decision,
+            action=fallback_action,
+            attempts=outcome.attempts,
+            retry_used=outcome.retry_used,
+            fallback_used=True,
+            fallback_reason="invalid_action_after_pause",
+        )
+
     def _build_decision_log_entry(
         self,
         *,
@@ -543,6 +603,8 @@ class LlmRunner:
             "model_display_name": player_config.model_display_name,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+        if player_config.reasoning is not None:
+            entry["reasoning"] = player_config.reasoning
         if phase == "decision_started":
             entry["request_start_ms"] = request_start_ms
             entry["prompt_messages"] = prompt_messages or []
@@ -637,6 +699,11 @@ class LlmRunner:
         result = close()
         if asyncio.iscoroutine(result):
             await result
+
+    async def _await_resume(self) -> None:
+        if self._resume_event.is_set():
+            return
+        await self._resume_event.wait()
 
 
 def _now_ms() -> int:

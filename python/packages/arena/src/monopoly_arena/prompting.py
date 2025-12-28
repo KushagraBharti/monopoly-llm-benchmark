@@ -515,6 +515,8 @@ def build_prompt_bundle(
         "decision": compact_decision,
         "decision_focus": decision_focus,
     }
+    if player.reasoning is not None:
+        payload["llm"] = {"reasoning": player.reasoning}
     user_content = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
     messages = [
         {"role": "system", "content": system_prompt},

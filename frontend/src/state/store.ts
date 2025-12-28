@@ -13,12 +13,16 @@ export type RunStatusPlayer = {
   name: string
   model_display_name: string
   openrouter_model_id: string
+  reasoning?: {
+    effort?: string
+  }
 }
 
 export type RunStatus = {
   runId: string | null
   turnIndex: number | null
   running: boolean
+  paused?: boolean
   connectedClients?: number
   players?: RunStatusPlayer[]
   lastUpdatedAt?: number
@@ -37,6 +41,8 @@ export type StoreState = {
   previousSnapshot: StateSnapshot | null
   events: Event[]
   ui: UiState
+  stoppedRunId: string | null
+  logResetId: number
   setStatus: (status: ConnectionStatus, error?: string) => void
   setSnapshot: (snapshot: StateSnapshot) => void
   pushEvent: (event: Event) => void
@@ -45,9 +51,18 @@ export type StoreState = {
   setEventHighlight: (indices: number[] | null) => void
   setDecisionHighlight: (indices: number[] | null) => void
   resetEvents: () => void
+  resetLogs: () => void
 }
 
 const MAX_EVENTS = 200
+// Drop late updates from a stopped run to keep the UI cleared after Stop.
+const shouldIgnoreRunUpdate = (
+  state: StoreState,
+  runId: string | null | undefined
+): boolean => {
+  if (!runId) return false
+  return state.stoppedRunId === runId
+}
 
 export const useGameStore = create<StoreState>((set) => ({
   connection: { status: 'connecting' },
@@ -55,6 +70,7 @@ export const useGameStore = create<StoreState>((set) => ({
     runId: null,
     turnIndex: null,
     running: false,
+    paused: false,
     connectedClients: 0,
     players: [],
     lastUpdatedAt: undefined,
@@ -67,12 +83,17 @@ export const useGameStore = create<StoreState>((set) => ({
     eventHighlight: null,
     decisionHighlight: null,
   },
+  stoppedRunId: null,
+  logResetId: 0,
   setStatus: (status, error) =>
     set(() => ({
       connection: { status, lastError: error },
     })),
   setSnapshot: (snapshot) =>
     set((state) => {
+      if (shouldIgnoreRunUpdate(state, snapshot.run_id)) {
+        return {}
+      }
       const prevRunId = state.snapshot?.run_id
       const prevTurn = state.snapshot?.turn_index ?? null
       const isNewRun = prevRunId !== undefined && prevRunId !== snapshot.run_id
@@ -87,6 +108,9 @@ export const useGameStore = create<StoreState>((set) => ({
     }),
   pushEvent: (event) =>
     set((state) => {
+      if (shouldIgnoreRunUpdate(state, event.run_id)) {
+        return {}
+      }
       const isGameStart = event.type === 'GAME_STARTED'
       const nextEvents = isGameStart ? [event] : [event, ...state.events]
       if (nextEvents.length > MAX_EVENTS) {
@@ -97,13 +121,20 @@ export const useGameStore = create<StoreState>((set) => ({
       }
     }),
   setRunStatus: (status) =>
-    set((state) => ({
-      runStatus: {
+    set((state) => {
+      const nextRunStatus = {
         ...state.runStatus,
         ...status,
         lastUpdatedAt: Date.now(),
-      },
-    })),
+      }
+      const nextRunning = nextRunStatus.running
+      const nextRunId = nextRunStatus.runId
+      return {
+        runStatus: nextRunStatus,
+        stoppedRunId:
+          nextRunning && nextRunId && nextRunId !== state.stoppedRunId ? null : state.stoppedRunId,
+      }
+    }),
   setDeedHighlight: (index) =>
     set((state) => ({
       ui: { ...state.ui, deedHighlight: index },
@@ -117,4 +148,17 @@ export const useGameStore = create<StoreState>((set) => ({
       ui: { ...state.ui, decisionHighlight: indices },
     })),
   resetEvents: () => set(() => ({ events: [] })),
+  resetLogs: () =>
+    set((state) => ({
+      events: [],
+      snapshot: null,
+      previousSnapshot: null,
+      ui: {
+        deedHighlight: null,
+        eventHighlight: null,
+        decisionHighlight: null,
+      },
+      stoppedRunId: state.runStatus.runId ?? state.snapshot?.run_id ?? null,
+      logResetId: state.logResetId + 1,
+    })),
 }))

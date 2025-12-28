@@ -52,6 +52,7 @@ class OpenRouterClient:
         tool_choice: str | dict[str, Any] | None = None,
         temperature: float = 0.0,
         max_tokens: int | None = None,
+        reasoning: dict[str, Any] | None = None,
     ) -> OpenRouterResult:
         if not self._api_key:
             return OpenRouterResult(
@@ -74,6 +75,8 @@ class OpenRouterClient:
             payload["tool_choice"] = tool_choice
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+        if reasoning is not None:
+            payload["reasoning"] = reasoning
 
         headers = {
             "Authorization": f"Bearer {self._api_key}",

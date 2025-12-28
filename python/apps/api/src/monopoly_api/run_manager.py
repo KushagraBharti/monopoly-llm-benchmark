@@ -15,6 +15,7 @@ from monopoly_api.mock_runner import build_idle_snapshot
 from monopoly_arena import LlmRunner, OpenRouterClient, PlayerConfig
 from monopoly_arena.player_config import EXPECTED_PLAYER_COUNT
 from monopoly_api.ws_protocol import make_event, make_hello, make_snapshot
+from monopoly_api.decision_index import DecisionIndex
 
 
 class RunManager:
@@ -29,6 +30,8 @@ class RunManager:
         self._turn_index: int | None = None
         self._telemetry: RunFiles | None = None
         self._players: list[PlayerConfig] = []
+        self._decision_index: DecisionIndex | None = None
+        self._paused = False
         self._lock = asyncio.Lock()
 
     async def start_run(self, seed: int, players: list[PlayerConfig]) -> str:
@@ -40,6 +43,7 @@ class RunManager:
             run_id = self._generate_run_id(seed, players)
             self._run_id = run_id
             self._telemetry = init_run_files(self._runs_dir, run_id)
+            self._decision_index = DecisionIndex(self._telemetry)
             self._players = players
             self._runner = LlmRunner(
                 seed=seed,
@@ -48,6 +52,7 @@ class RunManager:
                 openrouter=OpenRouterClient(),
                 run_files=self._telemetry,
             )
+            self._paused = False
             self._snapshot = self._runner.get_snapshot()
             self._turn_index = self._snapshot["turn_index"]
             self._seq = None
@@ -63,6 +68,7 @@ class RunManager:
         running = self._runner_task is not None and not self._runner_task.done()
         return {
             "running": running,
+            "paused": self._paused,
             "run_id": self._run_id,
             "turn_index": self._turn_index,
             "connected_clients": len(self._clients),
@@ -106,6 +112,7 @@ class RunManager:
             on_event=self.broadcast_event,
             on_snapshot=self.broadcast_snapshot,
             on_summary=self._write_summary,
+            on_decision=self._record_decision,
         )
 
     async def _write_summary(self, summary: dict[str, Any]) -> None:
@@ -132,8 +139,10 @@ class RunManager:
             return
         if self._runner is not None:
             self._runner.request_stop("STOPPED")
+            self._runner.resume()
         await self._runner_task
         self._runner_task = None
+        self._paused = False
 
     @staticmethod
     def _generate_run_id(seed: int, players: list[PlayerConfig]) -> str:
@@ -149,3 +158,34 @@ class RunManager:
         seed_blob = json.dumps({"seed": seed, "players": players_blob}, sort_keys=True)
         digest = hashlib.sha1(seed_blob.encode("utf-8")).hexdigest()[:8]
         return f"mock-{seed}-{digest}"
+
+    async def _record_decision(self, entry: dict[str, Any]) -> None:
+        if self._telemetry is not None:
+            self._telemetry.write_decision(entry)
+        if self._decision_index is not None:
+            self._decision_index.record_entry(entry)
+
+    async def pause(self) -> None:
+        async with self._lock:
+            if self._runner is None or self._runner_task is None or self._runner_task.done():
+                return
+            self._paused = True
+            self._runner.pause()
+
+    async def resume(self) -> None:
+        async with self._lock:
+            if self._runner is None or self._runner_task is None or self._runner_task.done():
+                self._paused = False
+                return
+            self._paused = False
+            self._runner.resume()
+
+    def get_recent_decisions(self, limit: int) -> list[dict[str, Any]]:
+        if self._decision_index is None:
+            return []
+        return self._decision_index.recent(limit=limit)
+
+    def get_decision_bundle(self, decision_id: str) -> dict[str, Any] | None:
+        if self._decision_index is None:
+            return None
+        return self._decision_index.get_bundle(decision_id)
