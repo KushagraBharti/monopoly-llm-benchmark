@@ -72,7 +72,7 @@ def _error_response(error_type: str, status_code: int | None = None) -> OpenRout
     )
 
 
-def _extract_decision(messages: list[dict[str, Any]]) -> dict[str, Any] | None:
+def _extract_payload(messages: list[dict[str, Any]]) -> dict[str, Any] | None:
     for message in messages:
         if message.get("role") != "user":
             continue
@@ -80,20 +80,23 @@ def _extract_decision(messages: list[dict[str, Any]]) -> dict[str, Any] | None:
             payload = json.loads(message.get("content", "{}"))
         except json.JSONDecodeError:
             continue
-        if "decision" in payload:
-            return payload["decision"]
+        if "decision" in payload and "full_state" in payload:
+            return payload
     return None
 
 
 class PolicyOpenRouter:
-    def __init__(self, policy: Callable[[dict[str, Any]], tuple[str, dict[str, Any]]]) -> None:
+    def __init__(
+        self,
+        policy: Callable[[dict[str, Any], dict[str, Any]], tuple[str, dict[str, Any]]],
+    ) -> None:
         self._policy = policy
 
     async def create_chat_completion(self, *, messages: list[dict[str, Any]], **_: Any) -> OpenRouterResult:
-        decision = _extract_decision(messages)
-        if decision is None:
-            return _tool_call_response("start_auction", {"space_index": 0})
-        tool_name, args = self._policy(decision)
+        payload = _extract_payload(messages)
+        if payload is None:
+            return _tool_call_response("START_AUCTION", {"space_index": 0})
+        tool_name, args = self._policy(payload["decision"], payload["decision_focus"])
         return _tool_call_response(tool_name, args)
 
 
@@ -112,9 +115,11 @@ class ScriptedOpenRouter:
         self._decision_attempts: dict[str, int] = {}
 
     async def create_chat_completion(self, *, messages: list[dict[str, Any]], **_: Any) -> OpenRouterResult:
-        decision = _extract_decision(messages)
-        if decision is None:
-            return _tool_call_response("start_auction", {"space_index": 0})
+        payload = _extract_payload(messages)
+        if payload is None:
+            return _tool_call_response("START_AUCTION", {"space_index": 0})
+        decision = payload["decision"]
+        decision_focus = payload["decision_focus"]
         decision_id = decision["decision_id"]
         if decision_id not in self._decision_index:
             self._decision_index[decision_id] = len(self._decision_index)
@@ -124,31 +129,29 @@ class ScriptedOpenRouter:
 
         decision_number = self._decision_index[decision_id]
         if decision_number == 0:
-            tool_name, args = _choose_buy_if_legal(decision)
+            tool_name, args = _choose_buy_if_legal(decision, decision_focus)
             return _tool_call_response(tool_name, args)
         if decision_number == 1:
             if attempt == 0:
-                return _tool_call_response("buy_property", {})
-            tool_name, args = _choose_buy_if_legal(decision)
+                return _tool_call_response("BUY_PROPERTY", {})
+            tool_name, args = _choose_buy_if_legal(decision, decision_focus)
             return _tool_call_response(tool_name, args)
         if decision_number == 2:
-            return _tool_call_response("buy_property", {})
-        tool_name, args = _choose_buy_if_legal(decision)
+            return _tool_call_response("BUY_PROPERTY", {})
+        tool_name, args = _choose_buy_if_legal(decision, decision_focus)
         return _tool_call_response(tool_name, args)
 
 
-def _choose_buy_if_legal(decision: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+def _choose_buy_if_legal(
+    decision: dict[str, Any],
+    decision_focus: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
     legal = {entry.get("action") for entry in decision.get("legal_actions", [])}
-    state = decision.get("state", {})
-    active_player_id = state.get("active_player_id")
-    position = 0
-    for player in state.get("players", []):
-        if player.get("player_id") == active_player_id:
-            position = int(player.get("position", 0))
-            break
+    landed_space = decision_focus.get("landed_space", {})
+    position = int(landed_space.get("space_index", 0))
     if "BUY_PROPERTY" in legal:
-        return "buy_property", {"space_index": position}
-    return "start_auction", {"space_index": position}
+        return "BUY_PROPERTY", {"space_index": position}
+    return "START_AUCTION", {"space_index": position}
 
 
 def test_retry_then_valid_action(tmp_path) -> None:
@@ -156,11 +159,11 @@ def test_retry_then_valid_action(tmp_path) -> None:
     run_files = init_run_files(tmp_path, "run-retry")
     call_state = {"count": 0}
 
-    def policy(decision: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    def policy(decision: dict[str, Any], decision_focus: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         call_state["count"] += 1
         if call_state["count"] == 1:
-            return "buy_property", {}
-        return _choose_buy_if_legal(decision)
+            return "BUY_PROPERTY", {}
+        return _choose_buy_if_legal(decision, decision_focus)
 
     fake = PolicyOpenRouter(policy)
     runner = LlmRunner(
@@ -206,8 +209,8 @@ def test_retry_then_valid_action(tmp_path) -> None:
 def test_invalid_twice_fallback(tmp_path) -> None:
     players = _make_players()
     run_files = init_run_files(tmp_path, "run-fallback")
-    def policy(_: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-        return "buy_property", {}
+    def policy(_: dict[str, Any], __: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        return "BUY_PROPERTY", {}
 
     fake = PolicyOpenRouter(policy)
     runner = LlmRunner(
@@ -243,6 +246,53 @@ def test_invalid_twice_fallback(tmp_path) -> None:
     assert response_events
     assert response_events[0]["payload"]["valid"] is False
     assert response_events[0]["payload"]["error"].startswith("fallback:")
+
+
+def test_prompt_payload_shape(tmp_path) -> None:
+    players = _make_players()
+    run_files = init_run_files(tmp_path, "run-prompt")
+    runner = LlmRunner(
+        seed=123,
+        players=players,
+        run_id="run-prompt",
+        openrouter=PolicyOpenRouter(_choose_buy_if_legal),
+        run_files=run_files,
+        event_delay_s=0,
+        max_turns=6,
+    )
+    asyncio.run(runner.run())
+
+    entries = [
+        json.loads(line)
+        for line in run_files.decisions_path.read_text(encoding="utf-8").strip().splitlines()
+        if line.strip()
+    ]
+    started = next(entry for entry in entries if entry["phase"] == "decision_started")
+    payload = started["prompt_payload"]
+    raw_payload = started["prompt_payload_raw"]
+    assert payload is not None
+    assert raw_payload is not None
+    assert json.loads(raw_payload) == payload
+    assert set(payload.keys()) == {"schema_version", "full_state", "decision", "decision_focus"}
+
+    full_state = payload["full_state"]
+    assert "board" not in full_state
+    assert "space_name" not in json.dumps(full_state)
+    assert len(full_state["others"]) == 3
+    assert isinstance(full_state["you"]["position"], str)
+    for player in [full_state["you"], *full_state["others"]]:
+        for holding in player["holdings"]["owned"]:
+            assert "space_key" in holding
+            assert "name" not in holding
+
+    decision = payload["decision"]
+    assert "state" not in decision
+    assert "run_id" not in decision
+
+    focus = payload["decision_focus"]
+    assert focus["focus_type"] == "BUY_DECISION_FOCUS"
+    assert "landed_space" in focus
+    assert "can_afford" in focus
 
 
 def test_two_llms_deterministic_replay() -> None:

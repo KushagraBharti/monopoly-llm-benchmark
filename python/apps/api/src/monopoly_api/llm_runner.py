@@ -8,17 +8,19 @@ from datetime import datetime, timezone
 from typing import Any, AsyncIterable, Awaitable, Callable
 
 from monopoly_engine import Engine
-from monopoly_engine.board import (
-    PROPERTY_RENT_TABLES,
-    RAILROAD_RENTS,
-    UTILITY_RENT_MULTIPLIER,
-)
 from monopoly_telemetry import RunFiles
 
 from monopoly_arena import OpenRouterClient, OpenRouterResult
 
 from .action_validation import validate_action_payload
 from .player_config import PlayerConfig
+from .prompting import (
+    PromptBundle,
+    PromptMemory,
+    build_openrouter_tools,
+    build_prompt_bundle,
+    build_space_key_by_index,
+)
 
 
 DecisionCallback = Callable[[dict[str, Any]], Awaitable[None]]
@@ -27,6 +29,8 @@ DecisionCallback = Callable[[dict[str, Any]], Awaitable[None]]
 @dataclass(slots=True)
 class DecisionAttempt:
     prompt_messages: list[dict[str, Any]]
+    prompt_payload: dict[str, Any] | None
+    prompt_payload_raw: str | None
     raw_response: dict[str, Any] | None
     assistant_content: str | None
     parsed_tool_call: dict[str, Any] | None
@@ -79,6 +83,8 @@ class LlmRunner:
             ts_step_ms=ts_step_ms,
         )
         self._event_delay_s = event_delay_s
+        self._space_key_by_index = build_space_key_by_index()
+        self._prompt_memory = PromptMemory(space_key_by_index=self._space_key_by_index)
 
     def request_stop(self, reason: str = "STOPPED") -> None:
         self._engine.request_stop(reason)
@@ -121,6 +127,7 @@ class LlmRunner:
             if not events:
                 break
             for event in events:
+                self._prompt_memory.update(event)
                 yield event
             if decision is not None:
                 outcome = await self._resolve_decision(decision, write_decision)
@@ -143,6 +150,7 @@ class LlmRunner:
                 )
                 await write_decision(resolved_entry)
                 for event in action_events:
+                    self._prompt_memory.update(event)
                     yield event
                 if self._engine.is_game_over():
                     break
@@ -163,7 +171,14 @@ class LlmRunner:
             if log_writer is not None:
                 await log_writer(entry)
 
-        if decision.get("decision_type") != "BUY_DECISION":
+        prompt_bundle = build_prompt_bundle(
+            decision,
+            player_config,
+            memory=self._prompt_memory,
+            space_key_by_index=self._space_key_by_index,
+        )
+        tools = build_openrouter_tools(prompt_bundle.user_payload["decision"])
+        if not tools:
             action = self._fallback_action(decision)
             return self._build_decision_outcome(
                 decision=decision,
@@ -174,8 +189,6 @@ class LlmRunner:
                 fallback_reason="unknown",
             )
 
-        tools = build_buy_tools()
-        prompt = build_prompt(decision, player_config)
         request_start_ms = _now_ms()
         await emit(
             self._build_decision_log_entry(
@@ -188,17 +201,25 @@ class LlmRunner:
                 fallback_used=False,
                 fallback_reason=None,
                 request_start_ms=request_start_ms,
-                prompt_messages=prompt,
+                prompt_messages=prompt_bundle.messages,
+                prompt_payload=prompt_bundle.user_payload,
+                prompt_payload_raw=prompt_bundle.user_content,
             )
         )
         result = await self._openrouter.create_chat_completion(
             model=player_config.openrouter_model_id,
-            messages=prompt,
+            messages=prompt_bundle.messages,
             tools=tools,
             tool_choice="required",
         )
         response_end_ms = _now_ms()
-        attempt = self._attempt_from_response(prompt, result, request_start_ms, response_end_ms)
+        attempt = self._attempt_from_response(
+            prompt_bundle,
+            result,
+            request_start_ms,
+            response_end_ms,
+            include_prompt=False,
+        )
         attempts.append(attempt)
         if not result.ok and result.error_type != "invalid_json":
             fallback_reason = _map_openrouter_error(result.error_type)
@@ -213,17 +234,27 @@ class LlmRunner:
             )
         action, errors, error_reason = self._build_action_from_attempt(decision, attempt)
         if errors:
-            retry_prompt = build_retry_prompt(decision, player_config, errors)
+            retry_bundle = build_prompt_bundle(
+                decision,
+                player_config,
+                memory=self._prompt_memory,
+                space_key_by_index=self._space_key_by_index,
+                retry_errors=errors,
+            )
             retry_start_ms = _now_ms()
             retry_result = await self._openrouter.create_chat_completion(
                 model=player_config.openrouter_model_id,
-                messages=retry_prompt,
+                messages=retry_bundle.messages,
                 tools=tools,
                 tool_choice="required",
             )
             retry_end_ms = _now_ms()
             retry_attempt = self._attempt_from_response(
-                retry_prompt, retry_result, retry_start_ms, retry_end_ms
+                retry_bundle,
+                retry_result,
+                retry_start_ms,
+                retry_end_ms,
+                include_prompt=True,
             )
             attempts.append(retry_attempt)
             if not retry_result.ok and retry_result.error_type != "invalid_json":
@@ -268,10 +299,12 @@ class LlmRunner:
 
     def _attempt_from_response(
         self,
-        prompt: list[dict[str, Any]],
+        prompt: PromptBundle,
         result: OpenRouterResult,
         request_start_ms: int | None,
         response_end_ms: int | None,
+        *,
+        include_prompt: bool,
     ) -> DecisionAttempt:
         response_json = result.response_json if result.ok else None
         assistant_content = None
@@ -289,8 +322,17 @@ class LlmRunner:
         latency_ms = None
         if request_start_ms is not None and response_end_ms is not None:
             latency_ms = max(response_end_ms - request_start_ms, 0)
+        prompt_messages: list[dict[str, Any]] = []
+        prompt_payload = None
+        prompt_payload_raw = None
+        if include_prompt:
+            prompt_messages = prompt.messages
+            prompt_payload = prompt.user_payload
+            prompt_payload_raw = prompt.user_content
         return DecisionAttempt(
-            prompt_messages=prompt,
+            prompt_messages=prompt_messages,
+            prompt_payload=prompt_payload,
+            prompt_payload_raw=prompt_payload_raw,
             raw_response=response_json,
             assistant_content=assistant_content,
             parsed_tool_call=tool_call,
@@ -363,6 +405,8 @@ class LlmRunner:
         fallback_reason: str | None,
         request_start_ms: int | None = None,
         prompt_messages: list[dict[str, Any]] | None = None,
+        prompt_payload: dict[str, Any] | None = None,
+        prompt_payload_raw: str | None = None,
         action_events: list[dict[str, Any]] | None = None,
         applied: bool | None = None,
     ) -> dict[str, Any]:
@@ -381,11 +425,15 @@ class LlmRunner:
         if phase == "decision_started":
             entry["request_start_ms"] = request_start_ms
             entry["prompt_messages"] = prompt_messages or []
+            entry["prompt_payload"] = prompt_payload
+            entry["prompt_payload_raw"] = prompt_payload_raw
             return entry
 
         entry["attempts"] = [
             {
                 "prompt_messages": attempt.prompt_messages,
+                "prompt_payload": attempt.prompt_payload,
+                "prompt_payload_raw": attempt.prompt_payload_raw,
                 "raw_response": attempt.raw_response,
                 "assistant_content": attempt.assistant_content,
                 "parsed_tool_call": attempt.parsed_tool_call,
@@ -486,83 +534,6 @@ def _map_openrouter_error(error_type: str | None) -> str:
     return mapping.get(error_type, "unknown")
 
 
-def build_buy_tools() -> list[dict[str, Any]]:
-    parameters = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["space_index"],
-        "properties": {
-            "space_index": {"type": "integer", "minimum": 0, "maximum": 39},
-            "public_message": {"type": "string"},
-            "private_thought": {"type": "string"},
-        },
-    }
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": "buy_property",
-                "description": "Buy the property at the current space.",
-                "parameters": parameters,
-            },
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "start_auction",
-                "description": "Decline purchase and start an auction for the current space.",
-                "parameters": parameters,
-            },
-        },
-    ]
-
-
-def build_prompt(decision: dict[str, Any], player: PlayerConfig) -> list[dict[str, Any]]:
-    summary = build_summary(decision)
-    rules = [
-        "Choose exactly one legal action using a tool call.",
-        "Only BUY_PROPERTY or START_AUCTION are allowed for BUY_DECISION.",
-        "BUY_PROPERTY is legal only if you can afford the price.",
-        "If unsure or unaffordable, choose START_AUCTION.",
-    ]
-    payload = {
-        "decision": decision,
-        "state_snapshot": decision.get("state", {}),
-        "summary": summary,
-        "rules": rules,
-    }
-    return [
-        {
-            "role": "system",
-            "content": player.system_prompt,
-        },
-        {
-            "role": "user",
-            "content": json.dumps(payload, ensure_ascii=True, separators=(",", ":")),
-        },
-    ]
-
-
-def build_retry_prompt(
-    decision: dict[str, Any],
-    player: PlayerConfig,
-    errors: list[str],
-) -> list[dict[str, Any]]:
-    base_prompt = build_prompt(decision, player)
-    correction = {
-        "validation_errors": errors,
-        "legal_actions": decision.get("legal_actions", []),
-        "instruction": "Respond with a valid tool call only. No freeform text.",
-    }
-    base_prompt.append(
-        {
-            "role": "user",
-            "content": json.dumps(correction, ensure_ascii=True, separators=(",", ":")),
-        }
-    )
-    return base_prompt
-
-
 def parse_tool_call(response_json: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
     choices = response_json.get("choices", [])
     if not choices:
@@ -587,11 +558,11 @@ def parse_tool_call(response_json: dict[str, Any]) -> tuple[dict[str, Any] | Non
 
 def tool_call_to_action(decision: dict[str, Any], tool_call: dict[str, Any]) -> dict[str, Any] | None:
     tool_name = tool_call.get("name")
-    if tool_name == "buy_property":
-        action_name = "BUY_PROPERTY"
-    elif tool_name == "start_auction":
-        action_name = "START_AUCTION"
-    else:
+    if not tool_name:
+        return None
+    legal_actions = [entry.get("action") for entry in decision.get("legal_actions", [])]
+    action_name = _resolve_action_name(tool_name, legal_actions)
+    if action_name is None:
         return None
 
     arguments = tool_call.get("arguments")
@@ -605,20 +576,42 @@ def tool_call_to_action(decision: dict[str, Any], tool_call: dict[str, Any]) -> 
     else:
         args_payload = {}
 
-    args: dict[str, Any] = {}
-    if "space_index" in args_payload:
-        args["space_index"] = args_payload.get("space_index")
+    args = _filter_action_args(decision, action_name, args_payload)
     action = {
         "schema_version": "v1",
         "decision_id": decision["decision_id"],
         "action": action_name,
         "args": args,
     }
-    if "public_message" in args_payload:
-        action["public_message"] = args_payload.get("public_message")
-    if "private_thought" in args_payload:
-        action["private_thought"] = args_payload.get("private_thought")
+    if isinstance(args_payload, dict):
+        if "public_message" in args_payload:
+            action["public_message"] = args_payload.get("public_message")
+        if "private_thought" in args_payload:
+            action["private_thought"] = args_payload.get("private_thought")
     return action
+
+
+def _resolve_action_name(tool_name: str, legal_actions: list[str | None]) -> str | None:
+    allowed = {action for action in legal_actions if action}
+    if tool_name in allowed:
+        return tool_name
+    candidate = tool_name.strip().upper().replace("-", "_")
+    if candidate in allowed:
+        return candidate
+    return None
+
+
+def _filter_action_args(
+    decision: dict[str, Any],
+    action_name: str,
+    args_payload: dict[str, Any],
+) -> dict[str, Any]:
+    if not isinstance(args_payload, dict):
+        return {}
+    args = dict(args_payload)
+    args.pop("public_message", None)
+    args.pop("private_thought", None)
+    return args
 
 
 def validate_decision_action(decision: dict[str, Any], action: dict[str, Any]) -> list[str]:
@@ -648,202 +641,3 @@ def validate_decision_action(decision: dict[str, Any], action: dict[str, Any]) -
                 errors.append("space_index does not match current player position")
 
     return errors
-
-
-def build_summary(decision: dict[str, Any]) -> dict[str, Any]:
-    state = decision.get("state", {})
-    board = state.get("board", [])
-    active_player_id = state.get("active_player_id")
-    players = state.get("players", [])
-    active_player = next(
-        (player for player in players if player.get("player_id") == active_player_id),
-        {},
-    )
-
-    group_to_spaces: dict[str, list[dict[str, Any]]] = {}
-    for space in board:
-        group = space.get("group")
-        if not group:
-            continue
-        group_to_spaces.setdefault(group, []).append(space)
-
-    monopolies_by_player: dict[str, list[str]] = {}
-    for group, spaces in group_to_spaces.items():
-        owners = {space.get("owner_id") for space in spaces}
-        if len(owners) == 1:
-            owner = next(iter(owners))
-            if owner:
-                monopolies_by_player.setdefault(owner, []).append(group)
-
-    owned_by_player: dict[str, list[dict[str, Any]]] = {p.get("player_id"): [] for p in players}
-    for space in board:
-        owner_id = space.get("owner_id")
-        if owner_id:
-            owned_by_player.setdefault(owner_id, []).append(space)
-
-    railroad_counts = _count_group_by_owner(board, "RAILROAD")
-    utility_counts = _count_group_by_owner(board, "UTILITY")
-
-    offer_space = None
-    if active_player:
-        pos = int(active_player.get("position", 0))
-        offer_space = next((space for space in board if space.get("index") == pos), None)
-
-    offer_summary = _build_offer_summary(
-        offer_space, active_player, monopolies_by_player, board, railroad_counts, utility_counts
-    )
-
-    opponents = []
-    for player in players:
-        if player.get("player_id") == active_player_id:
-            continue
-        opponent_id = player.get("player_id")
-        opponent_spaces = owned_by_player.get(opponent_id, [])
-        opponents.append(
-            {
-                "player_id": opponent_id,
-                "cash": player.get("cash"),
-                "property_count": len(opponent_spaces),
-                "monopolies": monopolies_by_player.get(opponent_id, []),
-                "railroads_owned": railroad_counts.get(opponent_id, 0),
-                "utilities_owned": utility_counts.get(opponent_id, 0),
-            }
-        )
-
-    rent_stats = _rent_exposure(board, monopolies_by_player, railroad_counts, utility_counts, active_player_id)
-
-    return {
-        "active_player": {
-            "player_id": active_player_id,
-            "cash": active_player.get("cash"),
-            "position": active_player.get("position"),
-            "owned_properties": [
-                {
-                    "index": space.get("index"),
-                    "name": space.get("name"),
-                    "group": space.get("group"),
-                    "mortgaged": space.get("mortgaged"),
-                }
-                for space in owned_by_player.get(active_player_id, [])
-            ],
-            "monopolies": monopolies_by_player.get(active_player_id, []),
-        },
-        "opponents": opponents,
-        "offer": offer_summary,
-        "rent_exposure": rent_stats,
-    }
-
-
-def _count_group_by_owner(board: list[dict[str, Any]], group_name: str) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for space in board:
-        if space.get("group") != group_name:
-            continue
-        owner_id = space.get("owner_id")
-        if owner_id:
-            counts[owner_id] = counts.get(owner_id, 0) + 1
-    return counts
-
-
-def _rent_exposure(
-    board: list[dict[str, Any]],
-    monopolies_by_player: dict[str, list[str]],
-    railroad_counts: dict[str, int],
-    utility_counts: dict[str, int],
-    active_player_id: str | None,
-) -> dict[str, Any]:
-    rents: list[int] = []
-    for space in board:
-        owner_id = space.get("owner_id")
-        if not owner_id or owner_id == active_player_id:
-            continue
-        rent = _estimate_rent(
-            space,
-            owner_id,
-            monopolies_by_player,
-            railroad_counts,
-            utility_counts,
-        )
-        if rent > 0:
-            rents.append(rent)
-    if not rents:
-        return {"max_rent": 0, "avg_rent": 0}
-    return {
-        "max_rent": max(rents),
-        "avg_rent": int(sum(rents) / len(rents)),
-    }
-
-
-def _estimate_rent(
-    space: dict[str, Any],
-    owner_id: str,
-    monopolies_by_player: dict[str, list[str]],
-    railroad_counts: dict[str, int],
-    utility_counts: dict[str, int],
-) -> int:
-    kind = space.get("kind")
-    if kind == "RAILROAD":
-        owned = railroad_counts.get(owner_id, 0)
-        if owned <= 0:
-            return 0
-        return RAILROAD_RENTS[min(owned, 4) - 1]
-    if kind == "UTILITY":
-        owned = utility_counts.get(owner_id, 0)
-        multiplier = UTILITY_RENT_MULTIPLIER.get(owned, 4)
-        return 7 * multiplier
-    if kind == "PROPERTY":
-        rent_table = PROPERTY_RENT_TABLES.get(space.get("index"))
-        if not rent_table:
-            return 0
-        if space.get("hotel"):
-            return rent_table[5]
-        houses = int(space.get("houses", 0))
-        if houses > 0:
-            return rent_table[min(houses, 4)]
-        base_rent = rent_table[0]
-        group = space.get("group")
-        if group and group in monopolies_by_player.get(owner_id, []):
-            base_rent *= 2
-        return base_rent
-    return 0
-
-
-def _build_offer_summary(
-    space: dict[str, Any] | None,
-    active_player: dict[str, Any],
-    monopolies_by_player: dict[str, list[str]],
-    board: list[dict[str, Any]],
-    railroad_counts: dict[str, int],
-    utility_counts: dict[str, int],
-) -> dict[str, Any]:
-    if not space:
-        return {}
-    price = space.get("price")
-    group = space.get("group")
-    active_id = active_player.get("player_id")
-    cash = active_player.get("cash")
-    completes_monopoly = False
-    if group:
-        group_spaces = [s for s in board if s.get("group") == group]
-        owned = [s for s in group_spaces if s.get("owner_id") == active_id]
-        completes_monopoly = len(owned) == len(group_spaces) - 1
-
-    base_rent = _estimate_rent(
-        space,
-        active_id,
-        monopolies_by_player,
-        railroad_counts,
-        utility_counts,
-    )
-
-    return {
-        "space_index": space.get("index"),
-        "name": space.get("name"),
-        "kind": space.get("kind"),
-        "group": group,
-        "price": price,
-        "base_rent": base_rent,
-        "can_afford": price is not None and cash is not None and cash >= price,
-        "cash_after_purchase": cash - price if price is not None and cash is not None else None,
-        "completes_monopoly": completes_monopoly,
-    }
