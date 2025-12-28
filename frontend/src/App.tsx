@@ -113,7 +113,7 @@ function App() {
 
       {/* Sidebar: Left Panel (Players & Controls & Ownership) */}
       <aside className="w-80 h-full border-r-4 border-black bg-white flex flex-col z-30 shadow-neo-lg">
-        <header className="p-2 border-b-2 border-black bg-gray-50 flex-shrink-0">
+        <header className="p-2 border-b-2 border-black bg-gray-50 shrink-0">
           <h1 className="text-xl font-black uppercase tracking-tighter leading-none mb-1">
             Monopoly <span className="text-neo-pink">Arena</span>
           </h1>
@@ -159,7 +159,7 @@ function App() {
 
         <div className="flex-1 flex flex-col min-h-0 bg-neo-bg">
           {/* Controls & Players - FIXED (Non-scrolling area to ensure visibility) */}
-          <div className="flex-shrink-0 flex flex-col gap-1 p-1 border-b-2 border-black bg-white z-10">
+          <div className="shrink-0 flex flex-col gap-1 p-1 border-b-2 border-black bg-white z-10">
             <GameControls />
             <PlayerPanel />
           </div>
