@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { getApiBaseUrl, getWsUrl, WsClient } from './net/ws';
-import { useGameStore } from './state/store';
-import { Board } from './components/board/Board';
-import { PlayerPanel } from './components/panels/PlayerPanel';
-import { OwnershipPanel } from './components/panels/OwnershipPanel';
-import { EventFeed } from './components/feed/EventFeed';
-import { GameControls } from './components/panels/GameControls';
-import { Inspector } from './components/panels/Inspector';
-import { DecisionOverlay } from './components/panels/DecisionOverlay';
-import { AuctionPanel } from './components/panels/AuctionPanel';
-import { TradeInspectorPanel } from './components/panels/TradeInspectorPanel';
-import { NeoBadge, cn } from './components/ui/NeoPrimitive';
-import { GO_INDEX, JAIL_INDEX } from './domain/monopoly/constants';
-import type { Event } from './net/contracts';
+import { getApiBaseUrl, getWsUrl, WsClient } from '@/net/ws';
+import { useGameStore } from '@/state/store';
+import { Board } from '@/components/board/Board';
+import { PlayerPanel } from '@/components/panels/PlayerPanel';
+import { OwnershipPanel } from '@/components/panels/OwnershipPanel';
+import { EventFeed } from '@/components/feed/EventFeed';
+import { GameControls } from '@/components/panels/GameControls';
+import { Inspector } from '@/components/panels/Inspector';
+import { DecisionOverlay } from '@/components/panels/DecisionOverlay';
+import { AuctionPanel } from '@/components/panels/AuctionPanel';
+import { TradeInspectorPanel } from '@/components/panels/TradeInspectorPanel';
+import { NeoBadge, cn } from '@/components/ui/NeoPrimitive';
+import { GO_INDEX, JAIL_INDEX } from '@/domain/monopoly/constants';
+import type { Event } from '@/net/contracts';
 
 function App() {
   const setStatus = useGameStore((state) => state.setStatus);

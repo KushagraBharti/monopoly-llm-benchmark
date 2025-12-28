@@ -13,7 +13,7 @@ from monopoly_telemetry import RunFiles
 from .openrouter_client import OpenRouterClient, OpenRouterResult
 
 from .action_validation import validate_action_payload
-from .player_config import PlayerConfig
+from .player_config import EXPECTED_PLAYER_COUNT, PlayerConfig
 from .prompting import (
     PromptBundle,
     PromptMemory,
@@ -69,8 +69,8 @@ class LlmRunner:
         ts_step_ms: int = 250,
     ) -> None:
         self.run_id = run_id
-        if len(players) != 4:
-            raise ValueError("Exactly 4 players are required for LLM runs.")
+        if len(players) != EXPECTED_PLAYER_COUNT:
+            raise ValueError(f"Exactly {EXPECTED_PLAYER_COUNT} players are required for LLM runs.")
         self._player_configs = {player.player_id: player for player in players}
         self._openrouter = openrouter
         self._run_files = run_files

@@ -48,6 +48,7 @@ async def _run(args: argparse.Namespace) -> int:
         start_ts_ms=0,
         ts_step_ms=args.ts_step_ms,
     )
+    run_files.write_snapshot(runner.get_snapshot())
 
     stop_after_decisions = args.stop_after_decisions
     resolved_count = 0
@@ -90,4 +91,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

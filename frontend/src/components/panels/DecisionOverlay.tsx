@@ -1,5 +1,5 @@
-import { useGameStore } from '../../state/store';
-import { NeoCard } from '../ui/NeoPrimitive';
+import { useGameStore } from '@/state/store';
+import { NeoCard } from '@/components/ui/NeoPrimitive';
 
 export const DecisionOverlay = () => {
   const snapshot = useGameStore((state) => state.snapshot);

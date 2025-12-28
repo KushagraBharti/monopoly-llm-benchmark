@@ -7,7 +7,8 @@ Run artifact writer utilities.
 - Writes:
   - `events.jsonl`: canonical event log
   - `decisions.jsonl`: decision log (started/resolved phases, retries/fallbacks, timing)
-  - `state/turn_XXXX.json`: periodic full state snapshots
+  - `state/turn_XXXX.json`: canonical per-turn snapshot (never overwritten)
+  - `state/turn_XXXX_decision_*.json`: additional snapshots taken during `AWAITING_DECISION`
   - `prompts/decision_<id>_*.{json,txt}`: per-decision prompt/response artifacts
   - `summary.json`: end-of-run summary
 

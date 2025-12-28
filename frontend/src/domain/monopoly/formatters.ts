@@ -1,5 +1,5 @@
-import type { Event } from '../../net/contracts';
-import { getSpaceName } from './constants';
+import type { Event } from '@/net/contracts';
+import { getSpaceName } from '@/domain/monopoly/constants';
 
 export type EventSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 

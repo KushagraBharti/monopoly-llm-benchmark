@@ -9,11 +9,13 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(currentDir, '..')
 const contractsPath = path.resolve(repoRoot, 'contracts', 'ts')
 const contractsDataPath = path.resolve(repoRoot, 'contracts', 'data')
+const srcPath = path.resolve(currentDir, 'src')
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
+      '@': srcPath,
       '@contracts': contractsPath,
       '@contracts-data': contractsDataPath,
     },

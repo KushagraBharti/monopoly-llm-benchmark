@@ -8,6 +8,7 @@
     "module": "ESNext",
     "baseUrl": ".",
     "paths": {
+      "@/*": ["./src/*"],
       "@contracts/*": ["../contracts/ts/*"],
       "@contracts-data/*": ["../contracts/data/*"]
     },

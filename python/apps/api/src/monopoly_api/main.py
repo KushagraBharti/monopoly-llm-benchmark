@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from monopoly_api.run_manager import RunManager
 from monopoly_api.settings import load_settings
 from monopoly_arena import build_player_configs
+from monopoly_arena.player_config import EXPECTED_PLAYER_COUNT
 
 app = FastAPI(title="Monopoly LLM Benchmark API")
 settings = load_settings()
@@ -55,8 +56,11 @@ async def run_start(body: StartRunRequest) -> dict:
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if len(players) != 4:
-        raise HTTPException(status_code=400, detail="Exactly 4 players are required for LLM runs.")
+    if len(players) != EXPECTED_PLAYER_COUNT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Exactly {EXPECTED_PLAYER_COUNT} players are required for LLM runs.",
+        )
     run_id = await run_manager.start_run(seed=seed, players=players)
     return {"run_id": run_id}
 

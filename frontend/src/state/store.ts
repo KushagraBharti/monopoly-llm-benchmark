@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
-import type { Event, StateSnapshot } from '../net/contracts'
-import type { ConnectionStatus } from '../net/ws'
+import type { Event, StateSnapshot } from '@/net/contracts'
+import type { ConnectionStatus } from '@/net/ws'
 
 type ConnectionState = {
   status: ConnectionStatus

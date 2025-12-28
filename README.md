@@ -70,6 +70,10 @@ Run the full repo verification suite (contracts + Python tests + frontend build)
 ```
 pwsh -File scripts/verify.ps1
 ```
+On macOS/Linux:
+```
+./scripts/verify.sh
+```
 
 ## WebSocket
 Backend provides a WebSocket endpoint at `/ws`. Frontend connects to it for real-time events and state snapshots.
@@ -103,7 +107,7 @@ Each run creates a folder under `runs/RUN_ID/`.
 - `events.jsonl`: canonical append-only event stream
 - `decisions.jsonl`: append-only log with `phase` entries (`decision_started`, `decision_resolved`) per decision, including epoch-ms timing fields (`request_start_ms`, `response_end_ms`, `latency_ms`), prompts, model outputs, tool calls, validation results, and retries
 - `prompts/`: per-decision prompt/response artifacts for inspection (`decision_<id>_*.{json,txt}`)
-- state snapshots: periodic full snapshots for resync and replay support
+- state snapshots: full snapshots under `state/` (`turn_XXXX.json` is never overwritten; decision-time snapshots also write `turn_XXXX_decision_*.json`)
 - `summary.json`: winner, turns, bankruptcies, cost estimates, key metrics
 
 ## Player model configuration

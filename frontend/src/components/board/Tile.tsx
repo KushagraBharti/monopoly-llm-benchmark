@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
-import type { Space } from '../../net/contracts';
-import { cn } from '../ui/NeoPrimitive';
-import { getGroupColor, getPlayerColor } from '../../domain/monopoly/colors';
+import type { Space } from '@/net/contracts';
+import { cn } from '@/components/ui/NeoPrimitive';
+import { getGroupColor, getPlayerColor } from '@/domain/monopoly/colors';
 
 interface TileProps {
   space: Space;

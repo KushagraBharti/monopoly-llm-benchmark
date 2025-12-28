@@ -1,6 +1,8 @@
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+$global:PSNativeCommandUseErrorActionPreference = $true
+
 function Invoke-Step {
   param(
     [Parameter(Mandatory = $true)][string]$Name,
@@ -8,7 +10,11 @@ function Invoke-Step {
   )
   Write-Host ""
   Write-Host "==> $Name"
+  $global:LASTEXITCODE = 0
   & $ScriptBlock
+  if ($LASTEXITCODE -ne 0) {
+    throw "Step failed: $Name (exit $LASTEXITCODE)"
+  }
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -59,4 +65,3 @@ try {
 } finally {
   Pop-Location
 }
-

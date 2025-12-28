@@ -1,4 +1,4 @@
-import { NeoCard } from '../ui/NeoPrimitive';
+import { NeoCard } from '@/components/ui/NeoPrimitive';
 
 type TradeInspectorPanelProps = {
   visible: boolean;

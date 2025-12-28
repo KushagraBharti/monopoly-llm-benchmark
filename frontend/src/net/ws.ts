@@ -1,4 +1,4 @@
-import type { Event, StateSnapshot } from './contracts'
+import type { Event, StateSnapshot } from '@/net/contracts'
 
 export type HelloPayload = {
   schema_version: 'v1'

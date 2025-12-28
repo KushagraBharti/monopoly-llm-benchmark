@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import type { Space } from '../../net/contracts';
-import { useGameStore } from '../../state/store';
-import { getGroupColor, getPlayerColor } from '../../domain/monopoly/colors';
-import { selectOwnershipGroups } from '../../domain/monopoly/selectors';
-import { NeoCard, cn } from '../ui/NeoPrimitive';
+import type { Space } from '@/net/contracts';
+import { useGameStore } from '@/state/store';
+import { getGroupColor, getPlayerColor } from '@/domain/monopoly/colors';
+import { selectOwnershipGroups } from '@/domain/monopoly/selectors';
+import { NeoCard, cn } from '@/components/ui/NeoPrimitive';
 
 const formatMiniLabel = (name: string): string => {
   const cleaned = name

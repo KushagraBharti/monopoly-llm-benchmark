@@ -24,13 +24,22 @@ class RunFiles:
 
     def write_snapshot(self, snapshot: dict[str, Any]) -> Path:
         turn_index = snapshot.get("turn_index", 0)
-        path = self.snapshots_dir / f"turn_{turn_index:04d}.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(snapshot, separators=(",", ":"), ensure_ascii=True),
-            encoding="utf-8",
-        )
-        return path
+        canonical_path = self.snapshots_dir / f"turn_{turn_index:04d}.json"
+        canonical_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(snapshot, separators=(",", ":"), ensure_ascii=True)
+        if not canonical_path.exists():
+            canonical_path.write_text(payload, encoding="utf-8")
+            return canonical_path
+
+        existing = canonical_path.read_text(encoding="utf-8")
+        if existing == payload:
+            return canonical_path
+
+        phase = str(snapshot.get("phase") or "UNKNOWN")
+        variant_kind = "decision" if phase == "AWAITING_DECISION" else "snapshot"
+        variant_path = _next_snapshot_variant_path(self.snapshots_dir, int(turn_index), variant_kind)
+        variant_path.write_text(payload, encoding="utf-8")
+        return variant_path
 
     def write_summary(self, summary: dict[str, Any]) -> None:
         self.summary_path.parent.mkdir(parents=True, exist_ok=True)
@@ -102,3 +111,23 @@ def _prompt_file_prefix(decision_id: str, *, attempt_index: int) -> str:
     if attempt_index <= 0:
         return f"decision_{safe}"
     return f"decision_{safe}_retry{attempt_index}"
+
+
+def _next_snapshot_variant_path(snapshots_dir: Path, turn_index: int, kind: str) -> Path:
+    prefix = f"turn_{turn_index:04d}_{kind}_"
+    pattern = re.compile(rf"^{re.escape(prefix)}(?P<num>[0-9]+)\.json$")
+    max_seen = 0
+    if snapshots_dir.exists():
+        for path in snapshots_dir.iterdir():
+            if not path.is_file():
+                continue
+            match = pattern.match(path.name)
+            if not match:
+                continue
+            try:
+                num = int(match.group("num"))
+            except (TypeError, ValueError):
+                continue
+            if num > max_seen:
+                max_seen = num
+    return snapshots_dir / f"{prefix}{max_seen + 1:04d}.json"

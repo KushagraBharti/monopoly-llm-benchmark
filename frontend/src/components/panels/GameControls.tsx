@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { getApiBaseUrl } from '../../net/ws';
-import { useGameStore } from '../../state/store';
-import { NeoCard } from '../ui/NeoPrimitive';
+import { getApiBaseUrl } from '@/net/ws';
+import { useGameStore } from '@/state/store';
+import { NeoCard } from '@/components/ui/NeoPrimitive';
 
 export const GameControls = () => {
     const [loading, setLoading] = useState(false);

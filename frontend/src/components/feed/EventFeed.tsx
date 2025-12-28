@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Event } from '../../net/contracts';
-import { useGameStore } from '../../state/store';
-import { cn, NeoBadge } from '../ui/NeoPrimitive';
-import { getPlayerColor } from '../../domain/monopoly/colors';
+import type { Event } from '@/net/contracts';
+import { useGameStore } from '@/state/store';
+import { cn, NeoBadge } from '@/components/ui/NeoPrimitive';
+import { getPlayerColor } from '@/domain/monopoly/colors';
 import {
   formatEventCard,
   formatMoney,
@@ -10,7 +10,7 @@ import {
   type EventBadge,
   type EventCardPart,
   type EventSeverity,
-} from '../../domain/monopoly/formatters';
+} from '@/domain/monopoly/formatters';
 
 const severityBorders: Record<EventSeverity, string> = {
   neutral: 'border-neo-border',

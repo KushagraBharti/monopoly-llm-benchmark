@@ -1,12 +1,12 @@
-import type { Event, Space, StateSnapshot } from '../../net/contracts';
-import type { GroupKey } from './constants';
+import type { Event, Space, StateSnapshot } from '@/net/contracts';
+import type { GroupKey } from '@/domain/monopoly/constants';
 import {
   GROUP_ORDER,
   SPECIAL_GROUP_ORDER,
   getGroupDisplayName,
   normalizeGroupKey,
-} from './constants';
-import { getGroupColor } from './colors';
+} from '@/domain/monopoly/constants';
+import { getGroupColor } from '@/domain/monopoly/colors';
 
 export type OwnershipGroup = {
   key: GroupKey;

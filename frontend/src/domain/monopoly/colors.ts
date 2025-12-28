@@ -1,5 +1,5 @@
-import type { GroupKey } from './constants';
-import { normalizeGroupKey } from './constants';
+import type { GroupKey } from '@/domain/monopoly/constants';
+import { normalizeGroupKey } from '@/domain/monopoly/constants';
 
 export const GROUP_COLORS: Record<GroupKey, string> = {
   BROWN: '#8B4513',

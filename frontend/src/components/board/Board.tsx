@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import type { Space } from '../../net/contracts';
-import { Tile } from './Tile';
-import { cn } from '../ui/NeoPrimitive';
-import { TokenLayer } from './TokenLayer';
-import { getGridPosition } from './utils';
-import { useGameStore, type StoreState } from '../../state/store';
+import type { Space } from '@/net/contracts';
+import { Tile } from '@/components/board/Tile';
+import { cn } from '@/components/ui/NeoPrimitive';
+import { TokenLayer } from '@/components/board/TokenLayer';
+import { getGridPosition } from '@/components/board/utils';
+import { useGameStore, type StoreState } from '@/state/store';
 
 interface BoardProps {
     spaces: Space[];

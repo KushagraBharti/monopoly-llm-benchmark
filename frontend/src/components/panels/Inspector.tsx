@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useGameStore } from '../../state/store';
-import { NeoBadge, cn } from '../ui/NeoPrimitive';
+import { useGameStore } from '@/state/store';
+import { NeoBadge, cn } from '@/components/ui/NeoPrimitive';
 
 type Tab = 'snapshot' | 'last' | 'stream' | 'raw';
 
