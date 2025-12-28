@@ -9,12 +9,14 @@ const repoRoot = path.resolve(contractsDir, "..");
 const frontendDir = path.join(repoRoot, "frontend");
 const schemasDir = path.join(contractsDir, "schemas");
 const examplesDir = path.join(contractsDir, "examples");
+const dataDir = path.join(contractsDir, "data");
 
 const schemaFiles = [
   "state.schema.json",
   "event.schema.json",
   "action.schema.json",
-  "decision.schema.json"
+  "decision.schema.json",
+  "board.schema.json"
 ];
 
 async function resolveDependency(moduleId) {
@@ -97,6 +99,23 @@ async function validateJsonExample(ajv, exampleFile, schemaId) {
   return { ok: true };
 }
 
+async function validateJsonFile(ajv, filePath, schemaId) {
+  const raw = await fs.readFile(filePath, "utf8");
+  const json = JSON.parse(raw);
+  const validator = ajv.getSchema(schemaId);
+
+  if (!validator) {
+    throw new Error(`Schema not found for ${schemaId}`);
+  }
+
+  const valid = validator(json);
+  if (!valid) {
+    return { ok: false, error: formatErrors(validator.errors) };
+  }
+
+  return { ok: true };
+}
+
 async function validateJsonlExample(ajv, exampleFile, schemaId) {
   const raw = await fs.readFile(path.join(examplesDir, exampleFile), "utf8");
   const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
@@ -154,6 +173,20 @@ for (const example of jsonExamples) {
     failed = true;
     console.error(`FAIL: ${example.file} -> ${error.message}`);
   }
+}
+
+try {
+  const boardPath = path.join(dataDir, "board.json");
+  const result = await validateJsonFile(ajv, boardPath, "board.schema.json");
+  if (result.ok) {
+    console.log(`OK: data/board.json`);
+  } else {
+    failed = true;
+    console.error(`FAIL: data/board.json -> ${result.error}`);
+  }
+} catch (error) {
+  failed = true;
+  console.error(`FAIL: data/board.json -> ${error.message}`);
 }
 
 try {

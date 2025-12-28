@@ -8,12 +8,14 @@ import tailwindcss from '@tailwindcss/vite'
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(currentDir, '..')
 const contractsPath = path.resolve(repoRoot, 'contracts', 'ts')
+const contractsDataPath = path.resolve(repoRoot, 'contracts', 'data')
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       '@contracts': contractsPath,
+      '@contracts-data': contractsDataPath,
     },
   },
   server: {

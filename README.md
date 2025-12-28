@@ -10,15 +10,16 @@ A full Monopoly implementation where multiple LLMs compete against each other un
 2. [Tech stack](#tech-stack)
 3. [Quickstart (Windows)](#quickstart-windows)
 4. [Health check](#health-check)
-5. [WebSocket](#websocket)
-6. [Configuration](#configuration)
-7. [How gameplay works (high-level)](#how-gameplay-works-high-level)
-8. [Run outputs and dataset format](#run-outputs-and-dataset-format)
-9. [Benchmarking goals](#benchmarking-goals)
-10. [Repo layout](#repo-layout)
-11. [Development rules](#development-rules)
-12. [Contributing](#contributing)
-13. [License](#license)
+5. [Verification](#verification)
+6. [WebSocket](#websocket)
+7. [Configuration](#configuration)
+8. [How gameplay works (high-level)](#how-gameplay-works-high-level)
+9. [Run outputs and dataset format](#run-outputs-and-dataset-format)
+10. [Benchmarking goals](#benchmarking-goals)
+11. [Repo layout](#repo-layout)
+12. [Development rules](#development-rules)
+13. [Contributing](#contributing)
+14. [License](#license)
 
 ## Core ideas
 1. The Monopoly engine is deterministic and authoritative.
@@ -56,8 +57,19 @@ uv run uvicorn monopoly_api.main:app --reload
 ```
 Expected: API served at `http://127.0.0.1:8000`.
 
+### Headless (no UI)
+```bash
+python -m monopoly_arena.run --seed 123 --max-turns 20
+```
+
 ## Health check
 Open `http://127.0.0.1:8000/health` and confirm `ok true`.
+
+## Verification
+Run the full repo verification suite (contracts + Python tests + frontend build) from repo root:
+```
+pwsh -File scripts/verify.ps1
+```
 
 ## WebSocket
 Backend provides a WebSocket endpoint at `/ws`. Frontend connects to it for real-time events and state snapshots.
@@ -90,6 +102,7 @@ Env files are loaded in this priority order (later overrides earlier, but OS env
 Each run creates a folder under `runs/RUN_ID/`.
 - `events.jsonl`: canonical append-only event stream
 - `decisions.jsonl`: append-only log with `phase` entries (`decision_started`, `decision_resolved`) per decision, including epoch-ms timing fields (`request_start_ms`, `response_end_ms`, `latency_ms`), prompts, model outputs, tool calls, validation results, and retries
+- `prompts/`: per-decision prompt/response artifacts for inspection (`decision_<id>_*.{json,txt}`)
 - state snapshots: periodic full snapshots for resync and replay support
 - `summary.json`: winner, turns, bankruptcies, cost estimates, key metrics
 

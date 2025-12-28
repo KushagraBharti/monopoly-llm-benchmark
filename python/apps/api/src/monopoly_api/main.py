@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from monopoly_api.run_manager import RunManager
 from monopoly_api.settings import load_settings
-from monopoly_api.player_config import build_player_configs
+from monopoly_arena import build_player_configs
 
 app = FastAPI(title="Monopoly LLM Benchmark API")
 settings = load_settings()

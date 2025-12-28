@@ -1,79 +1,92 @@
 from __future__ import annotations
 
+import json
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
 from .models import SpaceState
 
 
-BOARD_SPEC: list[tuple[int, str, str, str | None, int | None]] = [
-    (0, "GO", "Go", None, None),
-    (1, "PROPERTY", "Mediterranean Avenue", "BROWN", 60),
-    (2, "COMMUNITY_CHEST", "Community Chest", None, None),
-    (3, "PROPERTY", "Baltic Avenue", "BROWN", 60),
-    (4, "TAX", "Income Tax", None, None),
-    (5, "RAILROAD", "Reading Railroad", "RAILROAD", 200),
-    (6, "PROPERTY", "Oriental Avenue", "LIGHT_BLUE", 100),
-    (7, "CHANCE", "Chance", None, None),
-    (8, "PROPERTY", "Vermont Avenue", "LIGHT_BLUE", 100),
-    (9, "PROPERTY", "Connecticut Avenue", "LIGHT_BLUE", 120),
-    (10, "JAIL", "Jail", None, None),
-    (11, "PROPERTY", "St. Charles Place", "PINK", 140),
-    (12, "UTILITY", "Electric Company", "UTILITY", 150),
-    (13, "PROPERTY", "States Avenue", "PINK", 140),
-    (14, "PROPERTY", "Virginia Avenue", "PINK", 160),
-    (15, "RAILROAD", "Pennsylvania Railroad", "RAILROAD", 200),
-    (16, "PROPERTY", "St. James Place", "ORANGE", 180),
-    (17, "COMMUNITY_CHEST", "Community Chest", None, None),
-    (18, "PROPERTY", "Tennessee Avenue", "ORANGE", 180),
-    (19, "PROPERTY", "New York Avenue", "ORANGE", 200),
-    (20, "FREE_PARKING", "Free Parking", None, None),
-    (21, "PROPERTY", "Kentucky Avenue", "RED", 220),
-    (22, "CHANCE", "Chance", None, None),
-    (23, "PROPERTY", "Indiana Avenue", "RED", 220),
-    (24, "PROPERTY", "Illinois Avenue", "RED", 240),
-    (25, "RAILROAD", "B. & O. Railroad", "RAILROAD", 200),
-    (26, "PROPERTY", "Atlantic Avenue", "YELLOW", 260),
-    (27, "PROPERTY", "Ventnor Avenue", "YELLOW", 260),
-    (28, "UTILITY", "Water Works", "UTILITY", 150),
-    (29, "PROPERTY", "Marvin Gardens", "YELLOW", 280),
-    (30, "GO_TO_JAIL", "Go To Jail", None, None),
-    (31, "PROPERTY", "Pacific Avenue", "GREEN", 300),
-    (32, "PROPERTY", "North Carolina Avenue", "GREEN", 300),
-    (33, "COMMUNITY_CHEST", "Community Chest", None, None),
-    (34, "PROPERTY", "Pennsylvania Avenue", "GREEN", 320),
-    (35, "RAILROAD", "Short Line", "RAILROAD", 200),
-    (36, "CHANCE", "Chance", None, None),
-    (37, "PROPERTY", "Park Place", "DARK_BLUE", 350),
-    (38, "TAX", "Luxury Tax", None, None),
-    (39, "PROPERTY", "Boardwalk", "DARK_BLUE", 400),
-]
+def _resolve_repo_root() -> Path:
+    start = Path(__file__).resolve()
+    current = start if start.is_dir() else start.parent
+    for parent in [current, *current.parents]:
+        if (parent / "contracts").is_dir():
+            return parent
+    raise RuntimeError("Repo root not found (expected a contracts/ directory).")
+
+
+@lru_cache(maxsize=1)
+def _load_board_spec() -> dict[str, Any]:
+    board_path = _resolve_repo_root() / "contracts" / "data" / "board.json"
+    spec = json.loads(board_path.read_text(encoding="utf-8"))
+    if spec.get("schema_version") != "v1":
+        raise ValueError("Unsupported board schema_version (expected v1).")
+    return spec
+
+
+def _required_list(value: Any, *, field: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise TypeError(f"board.json field '{field}' must be a list")
+    return value
+
+
+def _required_dict(value: Any, *, field: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise TypeError(f"board.json field '{field}' must be an object")
+    return value
+
+
+def _parse_int_keyed_dict(value: Any, *, field: str) -> dict[int, Any]:
+    raw = _required_dict(value, field=field)
+    parsed: dict[int, Any] = {}
+    for key, entry in raw.items():
+        try:
+            int_key = int(key)
+        except (TypeError, ValueError) as exc:
+            raise TypeError(f"board.json field '{field}' has non-integer key '{key}'") from exc
+        parsed[int_key] = entry
+    return parsed
+
+
+def _build_board_spec_tuples(spec: dict[str, Any]) -> list[tuple[int, str, str, str | None, int | None]]:
+    spaces = _required_list(spec.get("spaces"), field="spaces")
+    tuples: list[tuple[int, str, str, str | None, int | None]] = []
+    for space in spaces:
+        if not isinstance(space, dict):
+            raise TypeError("board.json spaces[] must contain objects")
+        index = int(space.get("index", 0))
+        kind = str(space.get("kind", ""))
+        name = str(space.get("name", ""))
+        group = space.get("group")
+        if group is not None:
+            group = str(group)
+        price = space.get("price")
+        if price is not None:
+            price = int(price)
+        tuples.append((index, kind, name, group, price))
+    return tuples
+
+
+_SPEC = _load_board_spec()
+
+BOARD_SPEC: list[tuple[int, str, str, str | None, int | None]] = _build_board_spec_tuples(_SPEC)
 
 PROPERTY_RENT_TABLES: dict[int, list[int]] = {
-    1: [2, 10, 30, 90, 160, 250],
-    3: [4, 20, 60, 180, 320, 450],
-    6: [6, 30, 90, 270, 400, 550],
-    8: [6, 30, 90, 270, 400, 550],
-    9: [8, 40, 100, 300, 450, 600],
-    11: [10, 50, 150, 450, 625, 750],
-    13: [10, 50, 150, 450, 625, 750],
-    14: [12, 60, 180, 500, 700, 900],
-    16: [14, 70, 200, 550, 750, 950],
-    18: [14, 70, 200, 550, 750, 950],
-    19: [16, 80, 220, 600, 800, 1000],
-    21: [18, 90, 250, 700, 875, 1050],
-    23: [18, 90, 250, 700, 875, 1050],
-    24: [20, 100, 300, 750, 925, 1100],
-    26: [22, 110, 330, 800, 975, 1150],
-    27: [22, 110, 330, 800, 975, 1150],
-    29: [24, 120, 360, 850, 1025, 1200],
-    31: [26, 130, 390, 900, 1100, 1275],
-    32: [26, 130, 390, 900, 1100, 1275],
-    34: [28, 150, 450, 1000, 1200, 1400],
-    37: [35, 175, 500, 1100, 1300, 1500],
-    39: [50, 200, 600, 1400, 1700, 2000],
+    key: [int(value) for value in _required_list(entry, field=f"property_rent_tables.{key}")]
+    for key, entry in _parse_int_keyed_dict(_SPEC.get("property_rent_tables"), field="property_rent_tables").items()
 }
 
-RAILROAD_RENTS = [25, 50, 100, 200]
-UTILITY_RENT_MULTIPLIER = {1: 4, 2: 10}
-TAX_AMOUNTS = {4: 200, 38: 100}
+RAILROAD_RENTS = [int(value) for value in _required_list(_SPEC.get("railroad_rents"), field="railroad_rents")]
+UTILITY_RENT_MULTIPLIER = {
+    key: int(value)
+    for key, value in _parse_int_keyed_dict(_SPEC.get("utility_rent_multiplier"), field="utility_rent_multiplier").items()
+}
+TAX_AMOUNTS = {
+    key: int(value)
+    for key, value in _parse_int_keyed_dict(_SPEC.get("tax_amounts"), field="tax_amounts").items()
+}
 
 OWNABLE_KINDS = {"PROPERTY", "RAILROAD", "UTILITY"}
 

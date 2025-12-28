@@ -391,6 +391,9 @@ version = "0.1.0"
 source = { editable = "packages/arena" }
 dependencies = [
     { name = "httpx" },
+    { name = "jsonschema" },
+    { name = "monopoly-engine" },
+    { name = "monopoly-telemetry" },
     { name = "pydantic" },
     { name = "python-dotenv" },
 ]
@@ -409,6 +412,9 @@ type = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "jsonschema", specifier = ">=4.25.1" },
+    { name = "monopoly-engine", editable = "packages/engine" },
+    { name = "monopoly-telemetry", editable = "packages/telemetry" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
 ]

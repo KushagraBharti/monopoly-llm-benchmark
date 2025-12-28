@@ -1,4 +1,5 @@
 import type { Space } from '../../net/contracts';
+import boardSpecJson from '@contracts-data/board.json';
 
 type SpaceKind = Space['kind'];
 
@@ -22,48 +23,14 @@ export type BoardTile = {
   price: number | null;
 };
 
-export const BOARD_TILES: ReadonlyArray<BoardTile> = [
-  { index: 0, kind: 'GO', name: 'Go', group: null, price: null },
-  { index: 1, kind: 'PROPERTY', name: 'Mediterranean Avenue', group: 'BROWN', price: 60 },
-  { index: 2, kind: 'COMMUNITY_CHEST', name: 'Community Chest', group: null, price: null },
-  { index: 3, kind: 'PROPERTY', name: 'Baltic Avenue', group: 'BROWN', price: 60 },
-  { index: 4, kind: 'TAX', name: 'Income Tax', group: null, price: null },
-  { index: 5, kind: 'RAILROAD', name: 'Reading Railroad', group: 'RAILROAD', price: 200 },
-  { index: 6, kind: 'PROPERTY', name: 'Oriental Avenue', group: 'LIGHT_BLUE', price: 100 },
-  { index: 7, kind: 'CHANCE', name: 'Chance', group: null, price: null },
-  { index: 8, kind: 'PROPERTY', name: 'Vermont Avenue', group: 'LIGHT_BLUE', price: 100 },
-  { index: 9, kind: 'PROPERTY', name: 'Connecticut Avenue', group: 'LIGHT_BLUE', price: 120 },
-  { index: 10, kind: 'JAIL', name: 'Jail', group: null, price: null },
-  { index: 11, kind: 'PROPERTY', name: 'St. Charles Place', group: 'PINK', price: 140 },
-  { index: 12, kind: 'UTILITY', name: 'Electric Company', group: 'UTILITY', price: 150 },
-  { index: 13, kind: 'PROPERTY', name: 'States Avenue', group: 'PINK', price: 140 },
-  { index: 14, kind: 'PROPERTY', name: 'Virginia Avenue', group: 'PINK', price: 160 },
-  { index: 15, kind: 'RAILROAD', name: 'Pennsylvania Railroad', group: 'RAILROAD', price: 200 },
-  { index: 16, kind: 'PROPERTY', name: 'St. James Place', group: 'ORANGE', price: 180 },
-  { index: 17, kind: 'COMMUNITY_CHEST', name: 'Community Chest', group: null, price: null },
-  { index: 18, kind: 'PROPERTY', name: 'Tennessee Avenue', group: 'ORANGE', price: 180 },
-  { index: 19, kind: 'PROPERTY', name: 'New York Avenue', group: 'ORANGE', price: 200 },
-  { index: 20, kind: 'FREE_PARKING', name: 'Free Parking', group: null, price: null },
-  { index: 21, kind: 'PROPERTY', name: 'Kentucky Avenue', group: 'RED', price: 220 },
-  { index: 22, kind: 'CHANCE', name: 'Chance', group: null, price: null },
-  { index: 23, kind: 'PROPERTY', name: 'Indiana Avenue', group: 'RED', price: 220 },
-  { index: 24, kind: 'PROPERTY', name: 'Illinois Avenue', group: 'RED', price: 240 },
-  { index: 25, kind: 'RAILROAD', name: 'B. & O. Railroad', group: 'RAILROAD', price: 200 },
-  { index: 26, kind: 'PROPERTY', name: 'Atlantic Avenue', group: 'YELLOW', price: 260 },
-  { index: 27, kind: 'PROPERTY', name: 'Ventnor Avenue', group: 'YELLOW', price: 260 },
-  { index: 28, kind: 'UTILITY', name: 'Water Works', group: 'UTILITY', price: 150 },
-  { index: 29, kind: 'PROPERTY', name: 'Marvin Gardens', group: 'YELLOW', price: 280 },
-  { index: 30, kind: 'GO_TO_JAIL', name: 'Go To Jail', group: null, price: null },
-  { index: 31, kind: 'PROPERTY', name: 'Pacific Avenue', group: 'GREEN', price: 300 },
-  { index: 32, kind: 'PROPERTY', name: 'North Carolina Avenue', group: 'GREEN', price: 300 },
-  { index: 33, kind: 'COMMUNITY_CHEST', name: 'Community Chest', group: null, price: null },
-  { index: 34, kind: 'PROPERTY', name: 'Pennsylvania Avenue', group: 'GREEN', price: 320 },
-  { index: 35, kind: 'RAILROAD', name: 'Short Line', group: 'RAILROAD', price: 200 },
-  { index: 36, kind: 'CHANCE', name: 'Chance', group: null, price: null },
-  { index: 37, kind: 'PROPERTY', name: 'Park Place', group: 'DARK_BLUE', price: 350 },
-  { index: 38, kind: 'TAX', name: 'Luxury Tax', group: null, price: null },
-  { index: 39, kind: 'PROPERTY', name: 'Boardwalk', group: 'DARK_BLUE', price: 400 },
-];
+type BoardSpec = {
+  schema_version: 'v1';
+  spaces: ReadonlyArray<BoardTile>;
+};
+
+const BOARD_SPEC = boardSpecJson as unknown as BoardSpec;
+
+export const BOARD_TILES: ReadonlyArray<BoardTile> = BOARD_SPEC.spaces;
 
 export const GROUP_ORDER: ReadonlyArray<GroupKey> = [
   'BROWN',

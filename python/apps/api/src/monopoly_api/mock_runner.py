@@ -68,7 +68,11 @@ class MockRunner:
         for event in self._event_stream():
             if on_event is not None:
                 await on_event(event)
-            if on_snapshot is not None and event["type"] in {"TURN_ENDED", "GAME_ENDED"}:
+            if on_snapshot is not None and event["type"] in {
+                "LLM_DECISION_REQUESTED",
+                "TURN_ENDED",
+                "GAME_ENDED",
+            }:
                 await on_snapshot(self.get_snapshot())
             if self._event_delay_s > 0:
                 await asyncio.sleep(self._event_delay_s)

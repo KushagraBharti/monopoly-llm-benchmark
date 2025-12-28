@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "board.schema.json",
+  "title": "BoardSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "spaces",
+    "property_rent_tables",
+    "railroad_rents",
+    "utility_rent_multiplier",
+    "tax_amounts"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "v1" },
+    "spaces": {
+      "type": "array",
+      "minItems": 40,
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["index", "kind", "name", "group", "price"],
+        "properties": {
+          "index": { "type": "integer", "minimum": 0, "maximum": 39 },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "GO",
+              "PROPERTY",
+              "RAILROAD",
+              "UTILITY",
+              "TAX",
+              "CHANCE",
+              "COMMUNITY_CHEST",
+              "JAIL",
+              "GO_TO_JAIL",
+              "FREE_PARKING"
+            ]
+          },
+          "name": { "type": "string" },
+          "group": { "type": ["string", "null"] },
+          "price": { "type": ["integer", "null"], "minimum": 0 }
+        }
+      }
+    },
+    "property_rent_tables": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "railroad_rents": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": { "type": "integer", "minimum": 0 }
+    },
+    "utility_rent_multiplier": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[0-9]+$": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "tax_amounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[0-9]+$": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
+

@@ -12,9 +12,7 @@ from fastapi import WebSocket
 from monopoly_telemetry import RunFiles, init_run_files
 
 from monopoly_api.mock_runner import build_idle_snapshot
-from monopoly_api.llm_runner import LlmRunner
-from monopoly_api.player_config import PlayerConfig
-from monopoly_arena import OpenRouterClient
+from monopoly_arena import LlmRunner, OpenRouterClient, PlayerConfig
 from monopoly_api.ws_protocol import make_event, make_hello, make_snapshot
 
 
