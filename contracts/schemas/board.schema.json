@@ -10,7 +10,8 @@
     "property_rent_tables",
     "railroad_rents",
     "utility_rent_multiplier",
-    "tax_amounts"
+    "tax_amounts",
+    "house_cost_by_group"
   ],
   "properties": {
     "schema_version": { "type": "string", "const": "v1" },
@@ -76,7 +77,13 @@
       "patternProperties": {
         "^[0-9]+$": { "type": "integer", "minimum": 0 }
       }
+    },
+    "house_cost_by_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[A-Z_]+$": { "type": "integer", "minimum": 0 }
+      }
     }
   }
 }
-

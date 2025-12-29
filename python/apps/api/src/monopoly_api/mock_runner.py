@@ -104,6 +104,10 @@ class MockRunner:
             action_name = "buy_property"
         elif "start_auction" in legal_actions:
             action_name = "start_auction"
+        elif "end_turn" in legal_actions:
+            action_name = "end_turn"
+        elif "declare_bankruptcy" in legal_actions:
+            action_name = "declare_bankruptcy"
         elif legal_actions:
             action_name = legal_actions[0]
         else:

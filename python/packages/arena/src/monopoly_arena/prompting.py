@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import copy
 import json
-import re
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Any
 
 from monopoly_engine.board import (
-    BOARD_SPEC,
     GROUP_INDEXES,
+    HOUSE_COST_BY_GROUP,
     PROPERTY_RENT_TABLES,
     RAILROAD_RENTS,
+    SPACE_KEY_BY_INDEX,
     UTILITY_RENT_MULTIPLIER,
 )
 
@@ -21,25 +21,8 @@ from .player_config import DEFAULT_SYSTEM_PROMPT, PlayerConfig
 PROMPT_SCHEMA_VERSION = "v1"
 JAIL_FINE = 50
 
-HOUSE_COST_BY_GROUP = {
-    "BROWN": 50,
-    "LIGHT_BLUE": 50,
-    "PINK": 100,
-    "ORANGE": 100,
-    "RED": 150,
-    "YELLOW": 150,
-    "GREEN": 200,
-    "DARK_BLUE": 200,
-}
-
-
-def normalize_space_key(name: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9]+", "_", name.strip())
-    return cleaned.strip("_").upper()
-
-
 def build_space_key_by_index() -> dict[int, str]:
-    return {index: normalize_space_key(name) for index, _, name, _, _ in BOARD_SPEC}
+    return dict(SPACE_KEY_BY_INDEX)
 
 
 SPACE_KEY_BY_INDEX = build_space_key_by_index()
@@ -309,7 +292,12 @@ def _describe_action(action_name: str) -> str:
         "roll_for_doubles": "Roll for doubles to attempt to leave jail.",
         "pay_jail_fine": "Pay the jail fine to leave jail.",
         "use_get_out_of_jail_card": "Use a Get Out of Jail Free card.",
-        "END_TURN": "End your turn.",
+        "end_turn": "End your turn.",
+        "mortgage_property": "Mortgage a property you own.",
+        "unmortgage_property": "Unmortgage a property you own.",
+        "build_houses_or_hotel": "Build houses or a hotel on your monopolies.",
+        "sell_houses_or_hotel": "Sell houses or a hotel from your monopolies.",
+        "declare_bankruptcy": "Declare bankruptcy when you cannot pay.",
         "NOOP": "Take no action.",
     }
     return descriptions.get(action_name, f"Take the {action_name} action.")
@@ -326,18 +314,14 @@ def build_decision_focus(
     # TODO: expand focus payloads when engine emits richer decision contexts.
     if decision_type == "JAIL_DECISION":
         return build_jail_decision_focus(decision, space_key_by_index=space_key_by_index)
+    if decision_type == "POST_TURN_ACTION_DECISION":
+        return build_post_turn_action_decision_focus(decision, space_key_by_index=space_key_by_index)
+    if decision_type == "LIQUIDATION_DECISION":
+        return build_liquidation_decision_focus(decision, space_key_by_index=space_key_by_index)
     if decision_type == "AUCTION_BID":
         return build_auction_bid_focus(decision, space_key_by_index=space_key_by_index)
     if decision_type == "TRADE_RESPONSE":
         return build_trade_negotiation_focus(decision)
-    if decision_type == "END_TURN":
-        return build_end_turn_focus(decision)
-    if decision_type == "BUILD_DECISION":
-        return build_build_decision_focus(decision)
-    if decision_type == "MORTGAGE_DECISION":
-        return build_mortgage_decision_focus(decision)
-    if decision_type == "UNMORTGAGE_DECISION":
-        return build_unmortgage_decision_focus(decision)
     return {
         "schema_version": PROMPT_SCHEMA_VERSION,
         "focus_type": "UNKNOWN_DECISION_FOCUS",
@@ -443,6 +427,129 @@ def build_jail_decision_focus(
             "notes": ["If you roll doubles, you immediately leave jail and move normally."],
         },
         "legal_tools": _build_legal_tools(decision, include_args=False),
+    }
+
+
+def _tool_requires(action_name: str) -> list[str]:
+    if action_name in {"mortgage_property", "unmortgage_property"}:
+        return ["space_key", "public_message", "private_thought"]
+    if action_name == "build_houses_or_hotel":
+        return ["build_plan", "public_message", "private_thought"]
+    if action_name == "sell_houses_or_hotel":
+        return ["sell_plan", "public_message", "private_thought"]
+    return ["public_message", "private_thought"]
+
+
+def _lean_tool_entry(action_name: str, *, include_args: bool) -> dict[str, Any]:
+    tool: dict[str, Any] = {
+        "tool_name": action_name,
+        "requires": _tool_requires(action_name),
+    }
+    if include_args:
+        tool["args"] = {}
+    return tool
+
+
+def _build_post_turn_legal_tools(decision: dict[str, Any]) -> list[dict[str, Any]]:
+    tools: list[dict[str, Any]] = []
+    for entry in decision.get("legal_actions", []):
+        action_name = entry.get("action")
+        if not action_name:
+            continue
+        include_args = action_name in {"end_turn"}
+        tools.append(_lean_tool_entry(action_name, include_args=include_args))
+    return tools
+
+
+def _build_liquidation_legal_tools(decision: dict[str, Any]) -> list[dict[str, Any]]:
+    tools: list[dict[str, Any]] = []
+    for entry in decision.get("legal_actions", []):
+        action_name = entry.get("action")
+        if not action_name:
+            continue
+        include_args = action_name in {"declare_bankruptcy"}
+        tools.append(_lean_tool_entry(action_name, include_args=include_args))
+    return tools
+
+
+def _space_keys_for_indices(
+    indices: list[int] | None,
+    space_key_by_index: dict[int, str],
+) -> list[str]:
+    if not indices:
+        return []
+    return [space_key_for_index(int(index), space_key_by_index) for index in indices]
+
+
+def build_post_turn_action_decision_focus(
+    decision: dict[str, Any],
+    *,
+    space_key_by_index: dict[int, str],
+) -> dict[str, Any]:
+    post_turn = decision.get("post_turn", {})
+    options = post_turn.get("options", {}) if isinstance(post_turn, dict) else {}
+    return {
+        "schema_version": PROMPT_SCHEMA_VERSION,
+        "decision_id": decision.get("decision_id"),
+        "decision_type": decision.get("decision_type"),
+        "actor_player_id": decision.get("player_id"),
+        "scenario": {
+            "note": "Choose ONE optional strategic action, or end your turn.",
+            "options": {
+                "can_trade_with": list(options.get("can_trade_with", [])),
+                "mortgageable_space_keys": _space_keys_for_indices(
+                    options.get("mortgageable_space_indices"),
+                    space_key_by_index,
+                ),
+                "unmortgageable_space_keys": _space_keys_for_indices(
+                    options.get("unmortgageable_space_indices"),
+                    space_key_by_index,
+                ),
+                "buildable_space_keys": _space_keys_for_indices(
+                    options.get("buildable_space_indices"),
+                    space_key_by_index,
+                ),
+                "sellable_building_space_keys": _space_keys_for_indices(
+                    options.get("sellable_building_space_indices"),
+                    space_key_by_index,
+                ),
+            },
+        },
+        "legal_tools": _build_post_turn_legal_tools(decision),
+    }
+
+
+def build_liquidation_decision_focus(
+    decision: dict[str, Any],
+    *,
+    space_key_by_index: dict[int, str],
+) -> dict[str, Any]:
+    liquidation = decision.get("liquidation", {})
+    options = liquidation.get("options", {}) if isinstance(liquidation, dict) else {}
+    scenario: dict[str, Any] = {
+        "owed_amount": liquidation.get("owed_amount"),
+        "reason": liquidation.get("reason"),
+        "shortfall": liquidation.get("shortfall"),
+        "options": {
+            "mortgageable_space_keys": _space_keys_for_indices(
+                options.get("mortgageable_space_indices"),
+                space_key_by_index,
+            ),
+            "sellable_building_space_keys": _space_keys_for_indices(
+                options.get("sellable_building_space_indices"),
+                space_key_by_index,
+            ),
+        },
+    }
+    if liquidation.get("owed_to_player_id") is not None:
+        scenario["owed_to_player_id"] = liquidation.get("owed_to_player_id")
+    return {
+        "schema_version": PROMPT_SCHEMA_VERSION,
+        "decision_id": decision.get("decision_id"),
+        "decision_type": decision.get("decision_type"),
+        "actor_player_id": decision.get("player_id"),
+        "scenario": scenario,
+        "legal_tools": _build_liquidation_legal_tools(decision),
     }
 
 

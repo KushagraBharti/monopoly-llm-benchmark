@@ -7,10 +7,32 @@ export type ActionName =
   | "pay_jail_fine"
   | "use_get_out_of_jail_card"
   | "roll_for_doubles"
-  | "END_TURN"
+  | "end_turn"
+  | "mortgage_property"
+  | "unmortgage_property"
+  | "build_houses_or_hotel"
+  | "sell_houses_or_hotel"
+  | "declare_bankruptcy"
   | "NOOP";
 
 export type EmptyArgs = Record<string, never>;
+export type SpaceKeyArgs = { space_key: string };
+
+export type BuildingKind = "HOUSE" | "HOTEL";
+
+export interface BuildPlanItem {
+  space_key: string;
+  kind: BuildingKind;
+  count: number;
+}
+
+export interface BuildPlanArgs {
+  build_plan: BuildPlanItem[];
+}
+
+export interface SellPlanArgs {
+  sell_plan: BuildPlanItem[];
+}
 
 export interface BaseAction {
   schema_version: SchemaVersion;
@@ -52,7 +74,32 @@ export interface RollForDoublesAction extends BaseAction {
 }
 
 export interface EndTurnAction extends BaseAction {
-  action: "END_TURN";
+  action: "end_turn";
+  args: EmptyArgs;
+}
+
+export interface MortgagePropertyAction extends BaseAction {
+  action: "mortgage_property";
+  args: SpaceKeyArgs;
+}
+
+export interface UnmortgagePropertyAction extends BaseAction {
+  action: "unmortgage_property";
+  args: SpaceKeyArgs;
+}
+
+export interface BuildHousesOrHotelAction extends BaseAction {
+  action: "build_houses_or_hotel";
+  args: BuildPlanArgs;
+}
+
+export interface SellHousesOrHotelAction extends BaseAction {
+  action: "sell_houses_or_hotel";
+  args: SellPlanArgs;
+}
+
+export interface DeclareBankruptcyAction extends BaseAction {
+  action: "declare_bankruptcy";
   args: EmptyArgs;
 }
 
@@ -69,4 +116,9 @@ export type Action =
   | UseJailCardAction
   | RollForDoublesAction
   | EndTurnAction
+  | MortgagePropertyAction
+  | UnmortgagePropertyAction
+  | BuildHousesOrHotelAction
+  | SellHousesOrHotelAction
+  | DeclareBankruptcyAction
   | NoopAction;

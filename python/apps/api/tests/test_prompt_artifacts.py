@@ -77,6 +77,22 @@ def _tool_call_response(name: str, args: dict[str, Any]) -> OpenRouterResult:
 
 def _choose_buy_if_legal(decision: dict[str, Any], focus: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     legal = {entry.get("action") for entry in decision.get("legal_actions", [])}
+    decision_type = decision.get("decision_type")
+    if decision_type == "POST_TURN_ACTION_DECISION":
+        if "end_turn" in legal:
+            return "end_turn", {}
+    if decision_type == "LIQUIDATION_DECISION":
+        if "declare_bankruptcy" in legal:
+            return "declare_bankruptcy", {}
+        options = focus.get("scenario", {}).get("options", {})
+        mortgageable = options.get("mortgageable_space_keys", [])
+        if "mortgage_property" in legal and mortgageable:
+            return "mortgage_property", {"space_key": mortgageable[0]}
+        sellable = options.get("sellable_building_space_keys", [])
+        if "sell_houses_or_hotel" in legal and sellable:
+            return "sell_houses_or_hotel", {
+                "sell_plan": [{"space_key": sellable[0], "kind": "HOUSE", "count": 1}]
+            }
     if "buy_property" in legal:
         return "buy_property", {}
     if "start_auction" in legal:
@@ -99,6 +115,9 @@ class ScriptedOpenRouter:
             return _tool_call_response("start_auction", {})
         decision = payload["decision"]
         focus = payload["decision_focus"]
+        if decision.get("decision_type") != "BUY_OR_AUCTION_DECISION":
+            tool_name, args = _choose_buy_if_legal(decision, focus)
+            return _tool_call_response(tool_name, args)
         decision_id = decision["decision_id"]
         if decision_id not in self._decision_index:
             self._decision_index[decision_id] = len(self._decision_index)
@@ -152,6 +171,8 @@ def test_prompt_artifacts_written_for_normal_retry_and_fallback(tmp_path) -> Non
     decision_order: list[str] = []
     for entry in entries:
         if entry["phase"] != "decision_started":
+            continue
+        if entry.get("decision_type") != "BUY_OR_AUCTION_DECISION":
             continue
         decision_id = entry["decision_id"]
         if decision_id not in decision_order:

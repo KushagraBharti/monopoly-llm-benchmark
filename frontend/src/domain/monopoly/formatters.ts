@@ -33,6 +33,46 @@ export const formatMoney = (amount: number, showSign = false): string => {
   return `${sign}$${Math.abs(amount)}`;
 };
 
+const formatCount = (count: number, label: string): string => {
+  return `${count} ${label}${count === 1 ? '' : 's'}`;
+};
+
+const CARD_TITLES: Record<string, string> = {
+  ADVANCE_TO_GO: 'Advance to Go',
+  GO_TO_ILLINOIS_AVE: 'Go to Illinois Avenue',
+  GO_TO_ST_CHARLES_PLACE: 'Go to St. Charles Place',
+  GO_TO_NEAREST_UTILITY: 'Go to Nearest Utility',
+  GO_TO_NEAREST_RAILROAD_A: 'Go to Nearest Railroad',
+  GO_TO_NEAREST_RAILROAD_B: 'Go to Nearest Railroad',
+  BANK_PAYS_YOU_DIVIDEND_50: 'Bank Pays You $50',
+  GET_OUT_OF_JAIL_FREE: 'Get Out of Jail Free',
+  GO_BACK_3_SPACES: 'Go Back 3 Spaces',
+  GO_TO_JAIL: 'Go to Jail',
+  GENERAL_REPAIRS: 'General Repairs',
+  PAY_POOR_TAX_15: 'Pay Poor Tax $15',
+  TAKE_TRIP_TO_READING_RR: 'Take a Trip to Reading Railroad',
+  ADVANCE_TO_BOARDWALK: 'Advance to Boardwalk',
+  ELECTED_CHAIRMAN_PAY_EACH_PLAYER_50: 'Elected Chairman (Pay $50 Each)',
+  BUILDING_LOAN_MATURES_RECEIVE_150: 'Building Loan Matures (Collect $150)',
+  BANK_ERROR_COLLECT_200: 'Bank Error in Your Favor (Collect $200)',
+  DOCTOR_FEE_PAY_50: "Doctor's Fee (Pay $50)",
+  SALE_OF_STOCK_COLLECT_50: 'Sale of Stock (Collect $50)',
+  HOLIDAY_FUND_RECEIVE_100: 'Holiday Fund Matures (Collect $100)',
+  INCOME_TAX_REFUND_COLLECT_20: 'Income Tax Refund (Collect $20)',
+  BIRTHDAY_COLLECT_10_FROM_EACH_PLAYER: 'Birthday (Collect $10 Each)',
+  LIFE_INSURANCE_COLLECT_100: 'Life Insurance (Collect $100)',
+  HOSPITAL_FEES_PAY_100: 'Hospital Fees (Pay $100)',
+  SCHOOL_FEES_PAY_50: 'School Fees (Pay $50)',
+  CONSULTANCY_FEE_COLLECT_25: 'Consultancy Fee (Collect $25)',
+  STREET_REPAIRS: 'Street Repairs',
+  BEAUTY_CONTEST_COLLECT_10: 'Beauty Contest (Collect $10)',
+  INHERIT_100: 'Inherit $100',
+};
+
+const formatCardTitle = (cardId: string): string => {
+  return CARD_TITLES[cardId] ?? cardId.replace(/_/g, ' ');
+};
+
 const defaultCard = (event: Event): EventCard => ({
   id: event.event_id,
   type: event.type,
@@ -100,6 +140,9 @@ export const formatEventCard = (event: Event): EventCard => {
       const badges: EventBadge[] = [];
       if (event.payload.is_double) {
         badges.push({ text: 'DOUBLE', tone: 'warning' });
+      }
+      if (event.payload.reason) {
+        badges.push({ text: event.payload.reason.replace(/_/g, ' '), tone: 'info' });
       }
       return {
         ...base,
@@ -190,6 +233,120 @@ export const formatEventCard = (event: Event): EventCard => {
           { kind: 'text', value: `(${event.payload.reason})` },
         ],
         badges: [{ text: 'JAIL', tone: 'warning' }],
+      };
+    case 'CARD_DRAWN': {
+      const deckLabel = event.payload.deck_type === 'CHANCE' ? 'Chance' : 'Community Chest';
+      const cardTitle = formatCardTitle(event.payload.card_id);
+      return {
+        ...base,
+        icon: '[]',
+        title: 'Card Drawn',
+        severity: 'info',
+        parts: [
+          { kind: 'player', playerId: event.actor.player_id ?? 'unknown' },
+          { kind: 'text', value: 'drew' },
+          { kind: 'text', value: deckLabel },
+          { kind: 'text', value: 'card:' },
+          { kind: 'text', value: cardTitle },
+        ],
+        badges: [{ text: deckLabel.toUpperCase(), tone: 'info' }],
+      };
+    }
+    case 'HOUSE_BUILT':
+      return {
+        ...base,
+        icon: 'H+',
+        title: 'House Built',
+        severity: 'success',
+        parts: [
+          { kind: 'player', playerId: event.payload.player_id },
+          { kind: 'text', value: 'built' },
+          { kind: 'text', value: formatCount(event.payload.count, 'house') },
+          { kind: 'text', value: 'on' },
+          { kind: 'space', spaceIndex: event.payload.space_index },
+        ],
+        badges: [{ text: 'BUILD', tone: 'success' }],
+        highlightSpaceIndices: [event.payload.space_index],
+      };
+    case 'HOTEL_BUILT':
+      return {
+        ...base,
+        icon: 'H*',
+        title: 'Hotel Built',
+        severity: 'success',
+        parts: [
+          { kind: 'player', playerId: event.payload.player_id },
+          { kind: 'text', value: 'built' },
+          { kind: 'text', value: formatCount(event.payload.count, 'hotel') },
+          { kind: 'text', value: 'on' },
+          { kind: 'space', spaceIndex: event.payload.space_index },
+        ],
+        badges: [{ text: 'BUILD', tone: 'success' }],
+        highlightSpaceIndices: [event.payload.space_index],
+      };
+    case 'HOUSE_SOLD':
+      return {
+        ...base,
+        icon: 'H-',
+        title: 'House Sold',
+        severity: 'warning',
+        parts: [
+          { kind: 'player', playerId: event.payload.player_id },
+          { kind: 'text', value: 'sold' },
+          { kind: 'text', value: formatCount(event.payload.count, 'house') },
+          { kind: 'text', value: 'from' },
+          { kind: 'space', spaceIndex: event.payload.space_index },
+        ],
+        badges: [{ text: 'SELL', tone: 'warning' }],
+        highlightSpaceIndices: [event.payload.space_index],
+      };
+    case 'HOTEL_SOLD':
+      return {
+        ...base,
+        icon: 'H!',
+        title: 'Hotel Sold',
+        severity: 'warning',
+        parts: [
+          { kind: 'player', playerId: event.payload.player_id },
+          { kind: 'text', value: 'sold' },
+          { kind: 'text', value: formatCount(event.payload.count, 'hotel') },
+          { kind: 'text', value: 'from' },
+          { kind: 'space', spaceIndex: event.payload.space_index },
+        ],
+        badges: [{ text: 'SELL', tone: 'warning' }],
+        highlightSpaceIndices: [event.payload.space_index],
+      };
+    case 'PROPERTY_MORTGAGED':
+      return {
+        ...base,
+        icon: 'M$',
+        title: 'Property Mortgaged',
+        severity: 'warning',
+        parts: [
+          { kind: 'player', playerId: event.payload.player_id },
+          { kind: 'text', value: 'mortgaged' },
+          { kind: 'space', spaceIndex: event.payload.space_index },
+          { kind: 'text', value: 'for' },
+          { kind: 'money', amount: event.payload.amount },
+        ],
+        badges: [{ text: 'MORTGAGE', tone: 'warning' }],
+        highlightSpaceIndices: [event.payload.space_index],
+      };
+    case 'PROPERTY_UNMORTGAGED':
+      return {
+        ...base,
+        icon: 'U$',
+        title: 'Property Unmortgaged',
+        severity: 'success',
+        parts: [
+          { kind: 'player', playerId: event.payload.player_id },
+          { kind: 'text', value: 'unmortgaged' },
+          { kind: 'space', spaceIndex: event.payload.space_index },
+          { kind: 'text', value: 'for' },
+          { kind: 'money', amount: event.payload.amount },
+        ],
+        badges: [{ text: 'UNMORTGAGE', tone: 'success' }],
+        highlightSpaceIndices: [event.payload.space_index],
       };
     case 'LLM_DECISION_REQUESTED':
       return {

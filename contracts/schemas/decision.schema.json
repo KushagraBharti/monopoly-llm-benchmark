@@ -27,6 +27,8 @@
         "POST_LAND",
         "JAIL_DECISION",
         "BUY_OR_AUCTION_DECISION",
+        "POST_TURN_ACTION_DECISION",
+        "LIQUIDATION_DECISION",
         "AUCTION_BID",
         "END_TURN",
         "TRADE_RESPONSE"
@@ -205,7 +207,336 @@
             "additionalProperties": false,
             "required": ["action", "args_schema"],
             "properties": {
-              "action": { "const": "END_TURN" },
+              "action": { "const": "end_turn" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "mortgage_property" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties", "required", "properties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false },
+                  "required": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": { "const": "space_key" }
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["space_key"],
+                    "properties": {
+                      "space_key": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["type"],
+                        "properties": {
+                          "type": { "const": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "unmortgage_property" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties", "required", "properties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false },
+                  "required": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": { "const": "space_key" }
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["space_key"],
+                    "properties": {
+                      "space_key": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["type"],
+                        "properties": {
+                          "type": { "const": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "build_houses_or_hotel" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties", "required", "properties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false },
+                  "required": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": { "const": "build_plan" }
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["build_plan"],
+                    "properties": {
+                      "build_plan": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["type", "minItems", "items"],
+                        "properties": {
+                          "type": { "const": "array" },
+                          "minItems": { "const": 1 },
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["type", "required", "properties"],
+                            "properties": {
+                              "type": { "const": "object" },
+                              "required": {
+                                "type": "array",
+                                "minItems": 3,
+                                "maxItems": 3,
+                                "items": {
+                                  "enum": ["space_key", "kind", "count"]
+                                }
+                              },
+                              "properties": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["space_key", "kind", "count"],
+                                "properties": {
+                                  "space_key": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": ["type"],
+                                    "properties": {
+                                      "type": { "const": "string" }
+                                    }
+                                  },
+                                  "kind": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": ["type", "enum"],
+                                    "properties": {
+                                      "type": { "const": "string" },
+                                      "enum": {
+                                        "type": "array",
+                                        "minItems": 2,
+                                        "maxItems": 2,
+                                        "items": { "enum": ["HOUSE", "HOTEL"] }
+                                      }
+                                    }
+                                  },
+                                  "count": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": ["type", "minimum"],
+                                    "properties": {
+                                      "type": { "const": "integer" },
+                                      "minimum": { "const": 1 }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "sell_houses_or_hotel" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties", "required", "properties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false },
+                  "required": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": { "const": "sell_plan" }
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["sell_plan"],
+                    "properties": {
+                      "sell_plan": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["type", "minItems", "items"],
+                        "properties": {
+                          "type": { "const": "array" },
+                          "minItems": { "const": 1 },
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["type", "required", "properties"],
+                            "properties": {
+                              "type": { "const": "object" },
+                              "required": {
+                                "type": "array",
+                                "minItems": 3,
+                                "maxItems": 3,
+                                "items": {
+                                  "enum": ["space_key", "kind", "count"]
+                                }
+                              },
+                              "properties": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["space_key", "kind", "count"],
+                                "properties": {
+                                  "space_key": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": ["type"],
+                                    "properties": {
+                                      "type": { "const": "string" }
+                                    }
+                                  },
+                                  "kind": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": ["type", "enum"],
+                                    "properties": {
+                                      "type": { "const": "string" },
+                                      "enum": {
+                                        "type": "array",
+                                        "minItems": 2,
+                                        "maxItems": 2,
+                                        "items": { "enum": ["HOUSE", "HOTEL"] }
+                                      }
+                                    }
+                                  },
+                                  "count": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": ["type", "minimum"],
+                                    "properties": {
+                                      "type": { "const": "integer" },
+                                      "minimum": { "const": 1 }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "declare_bankruptcy" },
               "args_schema": {
                 "type": "object",
                 "additionalProperties": false,
@@ -276,6 +607,72 @@
             }
           }
         ]
+      }
+    },
+    "post_turn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["options"],
+      "properties": {
+        "options": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "can_trade_with",
+            "mortgageable_space_indices",
+            "unmortgageable_space_indices",
+            "buildable_space_indices",
+            "sellable_building_space_indices"
+          ],
+          "properties": {
+            "can_trade_with": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "mortgageable_space_indices": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+            },
+            "unmortgageable_space_indices": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+            },
+            "buildable_space_indices": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+            },
+            "sellable_building_space_indices": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+            }
+          }
+        }
+      }
+    },
+    "liquidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owed_amount", "reason", "shortfall", "options"],
+      "properties": {
+        "owed_amount": { "type": "integer", "minimum": 0 },
+        "owed_to_player_id": { "type": ["string", "null"] },
+        "reason": { "type": "string" },
+        "shortfall": { "type": "integer", "minimum": 0 },
+        "options": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mortgageable_space_indices", "sellable_building_space_indices"],
+          "properties": {
+            "mortgageable_space_indices": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+            },
+            "sellable_building_space_indices": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+            }
+          }
+        }
       }
     }
   }

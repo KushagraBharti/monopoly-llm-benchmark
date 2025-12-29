@@ -68,6 +68,15 @@
   },
   "railroad_rents": [25, 50, 100, 200],
   "utility_rent_multiplier": { "1": 4, "2": 10 },
-  "tax_amounts": { "4": 200, "38": 100 }
+  "tax_amounts": { "4": 200, "38": 100 },
+  "house_cost_by_group": {
+    "BROWN": 50,
+    "LIGHT_BLUE": 50,
+    "PINK": 100,
+    "ORANGE": 100,
+    "RED": 150,
+    "YELLOW": 150,
+    "GREEN": 200,
+    "DARK_BLUE": 200
+  }
 }
-

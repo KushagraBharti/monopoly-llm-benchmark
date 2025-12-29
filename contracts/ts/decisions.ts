@@ -5,6 +5,8 @@ export type DecisionType =
   | "POST_LAND"
   | "JAIL_DECISION"
   | "BUY_OR_AUCTION_DECISION"
+  | "POST_TURN_ACTION_DECISION"
+  | "LIQUIDATION_DECISION"
   | "AUCTION_BID"
   | "END_TURN"
   | "TRADE_RESPONSE";
@@ -38,6 +40,62 @@ export interface NoopArgsSchema {
   properties: {
     reason: {
       type: "string";
+    };
+  };
+}
+
+export interface SpaceKeyArgsSchema {
+  type: "object";
+  additionalProperties: false;
+  required: ["space_key"];
+  properties: {
+    space_key: {
+      type: "string";
+    };
+  };
+}
+
+export interface BuildPlanItemSchema {
+  type: "object";
+  additionalProperties: false;
+  required: ["space_key", "kind", "count"];
+  properties: {
+    space_key: {
+      type: "string";
+    };
+    kind: {
+      type: "string";
+      enum: ["HOUSE", "HOTEL"];
+    };
+    count: {
+      type: "integer";
+      minimum: 1;
+    };
+  };
+}
+
+export interface BuildPlanArgsSchema {
+  type: "object";
+  additionalProperties: false;
+  required: ["build_plan"];
+  properties: {
+    build_plan: {
+      type: "array";
+      minItems: 1;
+      items: BuildPlanItemSchema;
+    };
+  };
+}
+
+export interface SellPlanArgsSchema {
+  type: "object";
+  additionalProperties: false;
+  required: ["sell_plan"];
+  properties: {
+    sell_plan: {
+      type: "array";
+      minItems: 1;
+      items: BuildPlanItemSchema;
     };
   };
 }
@@ -77,7 +135,32 @@ export interface RollForDoublesLegalAction extends BaseLegalAction {
 }
 
 export interface EndTurnLegalAction extends BaseLegalAction {
-  action: "END_TURN";
+  action: "end_turn";
+  args_schema: EmptyArgsSchema;
+}
+
+export interface MortgagePropertyLegalAction extends BaseLegalAction {
+  action: "mortgage_property";
+  args_schema: SpaceKeyArgsSchema;
+}
+
+export interface UnmortgagePropertyLegalAction extends BaseLegalAction {
+  action: "unmortgage_property";
+  args_schema: SpaceKeyArgsSchema;
+}
+
+export interface BuildHousesOrHotelLegalAction extends BaseLegalAction {
+  action: "build_houses_or_hotel";
+  args_schema: BuildPlanArgsSchema;
+}
+
+export interface SellHousesOrHotelLegalAction extends BaseLegalAction {
+  action: "sell_houses_or_hotel";
+  args_schema: SellPlanArgsSchema;
+}
+
+export interface DeclareBankruptcyLegalAction extends BaseLegalAction {
+  action: "declare_bankruptcy";
   args_schema: EmptyArgsSchema;
 }
 
@@ -94,6 +177,11 @@ export type LegalAction =
   | UseJailCardLegalAction
   | RollForDoublesLegalAction
   | EndTurnLegalAction
+  | MortgagePropertyLegalAction
+  | UnmortgagePropertyLegalAction
+  | BuildHousesOrHotelLegalAction
+  | SellHousesOrHotelLegalAction
+  | DeclareBankruptcyLegalAction
   | NoopLegalAction;
 
 export interface DecisionPoint {
@@ -105,4 +193,23 @@ export interface DecisionPoint {
   decision_type: DecisionType;
   state: StateSnapshot;
   legal_actions: LegalAction[];
+  post_turn?: {
+    options: {
+      can_trade_with: string[];
+      mortgageable_space_indices: number[];
+      unmortgageable_space_indices: number[];
+      buildable_space_indices: number[];
+      sellable_building_space_indices: number[];
+    };
+  };
+  liquidation?: {
+    owed_amount: number;
+    owed_to_player_id?: string | null;
+    reason: string;
+    shortfall: number;
+    options: {
+      mortgageable_space_indices: number[];
+      sellable_building_space_indices: number[];
+    };
+  };
 }

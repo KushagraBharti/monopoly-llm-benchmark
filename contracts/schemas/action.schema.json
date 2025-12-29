@@ -89,7 +89,126 @@
       "properties": {
         "schema_version": { "type": "string", "const": "v1" },
         "decision_id": { "type": "string" },
-        "action": { "const": "END_TURN" },
+        "action": { "const": "end_turn" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "mortgage_property" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["space_key"],
+          "properties": {
+            "space_key": { "type": "string" }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "unmortgage_property" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["space_key"],
+          "properties": {
+            "space_key": { "type": "string" }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "build_houses_or_hotel" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["build_plan"],
+          "properties": {
+            "build_plan": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["space_key", "kind", "count"],
+                "properties": {
+                  "space_key": { "type": "string" },
+                  "kind": { "type": "string", "enum": ["HOUSE", "HOTEL"] },
+                  "count": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "sell_houses_or_hotel" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sell_plan"],
+          "properties": {
+            "sell_plan": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["space_key", "kind", "count"],
+                "properties": {
+                  "space_key": { "type": "string" },
+                  "kind": { "type": "string", "enum": ["HOUSE", "HOTEL"] },
+                  "count": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "declare_bankruptcy" },
         "args": { "type": "object", "additionalProperties": false },
         "public_message": { "type": "string" },
         "private_thought": { "type": "string" }

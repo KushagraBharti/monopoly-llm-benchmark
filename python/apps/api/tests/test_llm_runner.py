@@ -3,7 +3,12 @@ import json
 from typing import Any, Callable
 
 from monopoly_arena import OpenRouterResult
-from monopoly_arena.prompting import PromptMemory, build_prompt_bundle, build_space_key_by_index
+from monopoly_arena.prompting import (
+    PromptMemory,
+    build_openrouter_tools,
+    build_prompt_bundle,
+    build_space_key_by_index,
+)
 from monopoly_engine import Engine
 from monopoly_telemetry import init_run_files
 
@@ -124,6 +129,9 @@ class ScriptedOpenRouter:
         decision = payload["decision"]
         decision_focus = payload["decision_focus"]
         decision_id = decision["decision_id"]
+        if decision.get("decision_type") != "BUY_OR_AUCTION_DECISION":
+            tool_name, args = _choose_buy_if_legal(decision, decision_focus)
+            return _tool_call_response(tool_name, args)
         if decision_id not in self._decision_index:
             self._decision_index[decision_id] = len(self._decision_index)
             self._decision_attempts[decision_id] = 0
@@ -163,6 +171,22 @@ def _choose_buy_if_legal(
     decision_focus: dict[str, Any],
 ) -> tuple[str, dict[str, Any]]:
     legal = {entry.get("action") for entry in decision.get("legal_actions", [])}
+    decision_type = decision.get("decision_type")
+    if decision_type == "POST_TURN_ACTION_DECISION":
+        if "end_turn" in legal:
+            return "end_turn", {}
+    if decision_type == "LIQUIDATION_DECISION":
+        if "declare_bankruptcy" in legal:
+            return "declare_bankruptcy", {}
+        options = decision_focus.get("scenario", {}).get("options", {})
+        mortgageable = options.get("mortgageable_space_keys", [])
+        if "mortgage_property" in legal and mortgageable:
+            return "mortgage_property", {"space_key": mortgageable[0]}
+        sellable = options.get("sellable_building_space_keys", [])
+        if "sell_houses_or_hotel" in legal and sellable:
+            return "sell_houses_or_hotel", {
+                "sell_plan": [{"space_key": sellable[0], "kind": "HOUSE", "count": 1}]
+            }
     if "buy_property" in legal:
         return "buy_property", {}
     return "start_auction", {}
@@ -174,9 +198,10 @@ def test_retry_then_valid_action(tmp_path) -> None:
     call_state = {"count": 0}
 
     def policy(decision: dict[str, Any], decision_focus: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-        call_state["count"] += 1
-        if call_state["count"] == 1:
-            return "buy_property", {"space_index": 0}
+        if decision.get("decision_type") == "BUY_OR_AUCTION_DECISION":
+            call_state["count"] += 1
+            if call_state["count"] == 1:
+                return "buy_property", {"space_index": 0}
         return _choose_buy_if_legal(decision, decision_focus)
 
     fake = PolicyOpenRouter(policy)
@@ -223,8 +248,10 @@ def test_retry_then_valid_action(tmp_path) -> None:
 def test_invalid_twice_fallback(tmp_path) -> None:
     players = _make_players()
     run_files = init_run_files(tmp_path, "run-fallback")
-    def policy(_: dict[str, Any], __: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-        return "buy_property", {"space_index": 0}
+    def policy(decision: dict[str, Any], decision_focus: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        if decision.get("decision_type") == "BUY_OR_AUCTION_DECISION":
+            return "buy_property", {"space_index": 0}
+        return _choose_buy_if_legal(decision, decision_focus)
 
     fake = PolicyOpenRouter(policy)
     runner = LlmRunner(
@@ -281,7 +308,12 @@ def test_prompt_payload_shape(tmp_path) -> None:
         for line in run_files.decisions_path.read_text(encoding="utf-8").strip().splitlines()
         if line.strip()
     ]
-    started = next(entry for entry in entries if entry["phase"] == "decision_started")
+    started = next(
+        entry
+        for entry in entries
+        if entry["phase"] == "decision_started"
+        and entry.get("decision_type") == "BUY_OR_AUCTION_DECISION"
+    )
     payload = started["prompt_payload"]
     raw_payload = started["prompt_payload_raw"]
     assert payload is not None
@@ -353,6 +385,140 @@ def test_jail_decision_focus_shape() -> None:
     for tool in tools:
         assert "args" not in tool
 
+
+def test_post_turn_decision_focus_shape() -> None:
+    players_state = [
+        {"player_id": "p1", "name": "P1"},
+        {"player_id": "p2", "name": "P2"},
+        {"player_id": "p3", "name": "P3"},
+        {"player_id": "p4", "name": "P4"},
+    ]
+    engine = Engine(seed=19, players=players_state, run_id="run-post-turn", max_turns=3, ts_step_ms=1)
+    player = engine.state.players[0]
+    engine.state.active_player_id = "p1"
+    engine.state.board[1].owner_id = "p1"
+    engine.state.board[3].owner_id = "p1"
+    engine.state.board[1].houses = 1
+    engine.state.board[5].owner_id = "p1"
+    engine.state.board[12].owner_id = "p1"
+    engine.state.board[12].mortgaged = True
+
+    decision = engine._build_post_turn_action_decision(player)
+    space_key_by_index = build_space_key_by_index()
+    prompt = build_prompt_bundle(
+        decision,
+        _make_player("p1", "P1"),
+        memory=PromptMemory(space_key_by_index=space_key_by_index),
+        space_key_by_index=space_key_by_index,
+    )
+    focus = prompt.user_payload["decision_focus"]
+
+    assert focus["decision_type"] == "POST_TURN_ACTION_DECISION"
+    assert "cash" not in json.dumps(focus)
+    assert "position" not in json.dumps(focus)
+    assert "jail_turns" not in json.dumps(focus)
+    options = focus["scenario"]["options"]
+    assert isinstance(options["mortgageable_space_keys"], list)
+    tools = focus["legal_tools"]
+    tool_names = {tool["tool_name"] for tool in tools}
+    assert "end_turn" in tool_names
+    assert "propose_trade" not in tool_names
+    for tool in tools:
+        if tool["tool_name"] == "end_turn":
+            assert tool["args"] == {}
+        else:
+            assert "args" not in tool
+
+    build_tool = next(tool for tool in tools if tool["tool_name"] == "build_houses_or_hotel")
+    assert "build_plan" in build_tool["requires"]
+    sell_tool = next(tool for tool in tools if tool["tool_name"] == "sell_houses_or_hotel")
+    assert "sell_plan" in sell_tool["requires"]
+    mortgage_tool = next(tool for tool in tools if tool["tool_name"] == "mortgage_property")
+    assert "space_key" in mortgage_tool["requires"]
+    unmortgage_tool = next(tool for tool in tools if tool["tool_name"] == "unmortgage_property")
+    assert "space_key" in unmortgage_tool["requires"]
+
+
+def test_liquidation_decision_focus_shape() -> None:
+    players_state = [
+        {"player_id": "p1", "name": "P1"},
+        {"player_id": "p2", "name": "P2"},
+        {"player_id": "p3", "name": "P3"},
+        {"player_id": "p4", "name": "P4"},
+    ]
+    engine = Engine(seed=21, players=players_state, run_id="run-liquidation-shape", max_turns=3, ts_step_ms=1)
+    player = engine.state.players[0]
+    engine.state.active_player_id = "p1"
+    player.cash = 90
+    engine.state.board[1].owner_id = "p1"
+    engine.state.board[3].owner_id = "p1"
+    engine.state.board[1].houses = 1
+    engine.state.board[5].owner_id = "p1"
+
+    payment = engine._build_payment_entry(340, "p2", "RENT", kind="RENT", space_index=14)
+    options = engine._compute_liquidation_options(player)
+    decision = engine._build_liquidation_decision(player, payment, options=options)
+
+    space_key_by_index = build_space_key_by_index()
+    prompt = build_prompt_bundle(
+        decision,
+        _make_player("p1", "P1"),
+        memory=PromptMemory(space_key_by_index=space_key_by_index),
+        space_key_by_index=space_key_by_index,
+    )
+    focus = prompt.user_payload["decision_focus"]
+
+    assert focus["decision_type"] == "LIQUIDATION_DECISION"
+    assert "cash" not in json.dumps(focus)
+    assert "position" not in json.dumps(focus)
+    assert "jail_turns" not in json.dumps(focus)
+    scenario = focus["scenario"]
+    assert scenario["owed_amount"] == 340
+    assert scenario["owed_to_player_id"] == "p2"
+    assert scenario["shortfall"] == 250
+    tools = focus["legal_tools"]
+    tool_names = {tool["tool_name"] for tool in tools}
+    assert "declare_bankruptcy" in tool_names
+    assert "mortgage_property" in tool_names
+    assert "sell_houses_or_hotel" in tool_names
+    for tool in tools:
+        if tool["tool_name"] == "declare_bankruptcy":
+            assert tool["args"] == {}
+        else:
+            assert "args" not in tool
+
+
+def test_post_turn_tool_schema_includes_build_and_sell_plans() -> None:
+    players_state = [
+        {"player_id": "p1", "name": "P1"},
+        {"player_id": "p2", "name": "P2"},
+        {"player_id": "p3", "name": "P3"},
+        {"player_id": "p4", "name": "P4"},
+    ]
+    engine = Engine(seed=29, players=players_state, run_id="run-post-turn-tools", max_turns=3, ts_step_ms=1)
+    player = engine.state.players[0]
+    engine.state.active_player_id = "p1"
+    engine.state.board[1].owner_id = "p1"
+    engine.state.board[3].owner_id = "p1"
+    engine.state.board[1].houses = 1
+
+    decision = engine._build_post_turn_action_decision(player)
+    space_key_by_index = build_space_key_by_index()
+    prompt = build_prompt_bundle(
+        decision,
+        _make_player("p1", "P1"),
+        memory=PromptMemory(space_key_by_index=space_key_by_index),
+        space_key_by_index=space_key_by_index,
+    )
+    tools = build_openrouter_tools(prompt.user_payload["decision"])
+
+    build_tool = next(tool for tool in tools if tool["function"]["name"] == "build_houses_or_hotel")
+    build_params = build_tool["function"]["parameters"]
+    assert "build_plan" in build_params.get("properties", {})
+
+    sell_tool = next(tool for tool in tools if tool["function"]["name"] == "sell_houses_or_hotel")
+    sell_params = sell_tool["function"]["parameters"]
+    assert "sell_plan" in sell_params.get("properties", {})
 
 def test_two_llms_deterministic_replay() -> None:
     players = _make_players()

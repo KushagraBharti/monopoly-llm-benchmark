@@ -9,6 +9,13 @@ export type EventType =
   | "PROPERTY_PURCHASED"
   | "RENT_PAID"
   | "SENT_TO_JAIL"
+  | "CARD_DRAWN"
+  | "HOUSE_BUILT"
+  | "HOTEL_BUILT"
+  | "HOUSE_SOLD"
+  | "HOTEL_SOLD"
+  | "PROPERTY_MORTGAGED"
+  | "PROPERTY_UNMORTGAGED"
   | "TURN_ENDED"
   | "GAME_ENDED"
   | "LLM_DECISION_REQUESTED"
@@ -51,6 +58,7 @@ export interface DiceRolledEvent extends BaseEvent {
     d1: number;
     d2: number;
     is_double: boolean;
+    reason?: string;
   };
 }
 
@@ -96,6 +104,68 @@ export interface SentToJailEvent extends BaseEvent {
   payload: {
     player_id: string;
     reason: string;
+  };
+}
+
+export interface CardDrawnEvent extends BaseEvent {
+  type: "CARD_DRAWN";
+  payload: {
+    deck_type: "CHANCE" | "COMMUNITY_CHEST";
+    card_id: string;
+  };
+}
+
+export interface HouseBuiltEvent extends BaseEvent {
+  type: "HOUSE_BUILT";
+  payload: {
+    player_id: string;
+    space_index: number;
+    count: number;
+  };
+}
+
+export interface HotelBuiltEvent extends BaseEvent {
+  type: "HOTEL_BUILT";
+  payload: {
+    player_id: string;
+    space_index: number;
+    count: number;
+  };
+}
+
+export interface HouseSoldEvent extends BaseEvent {
+  type: "HOUSE_SOLD";
+  payload: {
+    player_id: string;
+    space_index: number;
+    count: number;
+  };
+}
+
+export interface HotelSoldEvent extends BaseEvent {
+  type: "HOTEL_SOLD";
+  payload: {
+    player_id: string;
+    space_index: number;
+    count: number;
+  };
+}
+
+export interface PropertyMortgagedEvent extends BaseEvent {
+  type: "PROPERTY_MORTGAGED";
+  payload: {
+    player_id: string;
+    space_index: number;
+    amount: number;
+  };
+}
+
+export interface PropertyUnmortgagedEvent extends BaseEvent {
+  type: "PROPERTY_UNMORTGAGED";
+  payload: {
+    player_id: string;
+    space_index: number;
+    amount: number;
   };
 }
 
@@ -159,6 +229,13 @@ export type Event =
   | PropertyPurchasedEvent
   | RentPaidEvent
   | SentToJailEvent
+  | CardDrawnEvent
+  | HouseBuiltEvent
+  | HotelBuiltEvent
+  | HouseSoldEvent
+  | HotelSoldEvent
+  | PropertyMortgagedEvent
+  | PropertyUnmortgagedEvent
   | TurnEndedEvent
   | GameEndedEvent
   | LlmDecisionRequestedEvent

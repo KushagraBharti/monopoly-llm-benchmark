@@ -6,8 +6,13 @@ from monopoly_engine import Engine
 
 
 def choose_action(decision: dict[str, Any]) -> dict[str, Any]:
+    decision_type = decision.get("decision_type")
     legal_actions = [entry["action"] for entry in decision.get("legal_actions", [])]
-    if "buy_property" in legal_actions:
+    if decision_type == "POST_TURN_ACTION_DECISION" and "end_turn" in legal_actions:
+        action_name = "end_turn"
+    elif decision_type == "LIQUIDATION_DECISION" and "declare_bankruptcy" in legal_actions:
+        action_name = "declare_bankruptcy"
+    elif "buy_property" in legal_actions:
         action_name = "buy_property"
     elif "start_auction" in legal_actions:
         action_name = "start_auction"

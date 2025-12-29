@@ -148,7 +148,8 @@ def test_rent_payment() -> None:
     cash_p2 = engine.state.players[1].cash
 
     _, events, decision, _ = engine.advance_until_decision(max_steps=1)
-    assert decision is None
+    assert decision is not None
+    assert decision["decision_type"] == "POST_TURN_ACTION_DECISION"
     rent_event = next(event for event in events if event["type"] == "RENT_PAID")
     assert rent_event["payload"]["amount"] == 12
     assert engine.state.players[0].cash == cash_p1 - 12
@@ -167,7 +168,8 @@ def test_monopoly_doubles_base_rent() -> None:
     engine.state.board[3].owner_id = "p2"
 
     _, events, decision, _ = engine.advance_until_decision(max_steps=1)
-    assert decision is None
+    assert decision is not None
+    assert decision["decision_type"] == "POST_TURN_ACTION_DECISION"
     rent_event = next(event for event in events if event["type"] == "RENT_PAID")
     assert rent_event["payload"]["amount"] == 4
 
@@ -182,15 +184,24 @@ def test_bankruptcy_on_rent_transfers_assets() -> None:
     engine.state.active_player_id = "p1"
     engine.state.players[0].cash = 5
     engine.state.board[1].owner_id = "p1"
+    engine.state.board[1].mortgaged = True
     rent_index = 14
     engine.state.board[rent_index].owner_id = "p2"
     cash_p2 = engine.state.players[1].cash
 
-    _, events, decision, _ = engine.advance_until_decision(max_steps=1)
-    assert decision is None
-    rent_event = next(event for event in events if event["type"] == "RENT_PAID")
-    assert rent_event["payload"]["amount"] == 5
+    _, _, decision, _ = engine.advance_until_decision(max_steps=1)
+    assert decision is not None
+    assert decision["decision_type"] == "LIQUIDATION_DECISION"
 
+    action = {
+        "schema_version": "v1",
+        "decision_id": decision["decision_id"],
+        "action": "declare_bankruptcy",
+        "args": {},
+    }
+    _, action_events, _, _ = engine.apply_action(action)
+
+    assert any(event["type"] == "CASH_CHANGED" for event in action_events)
     assert engine.state.players[0].bankrupt is True
     assert engine.state.players[0].bankrupt_to == "p2"
     assert engine.state.players[0].cash == 0
@@ -302,7 +313,8 @@ def test_jail_roll_success_leaves_jail() -> None:
     }
     _, action_events, new_decision, _ = engine.apply_action(action)
 
-    assert new_decision is None
+    assert new_decision is not None
+    assert new_decision["decision_type"] == "POST_TURN_ACTION_DECISION"
     assert player.in_jail is False
     assert player.position == 14
     assert player.jail_turns == 0
@@ -335,7 +347,8 @@ def test_pay_jail_fine_leaves_jail() -> None:
     }
     _, action_events, new_decision, _ = engine.apply_action(action)
 
-    assert new_decision is None
+    assert new_decision is not None
+    assert new_decision["decision_type"] == "POST_TURN_ACTION_DECISION"
     assert player.in_jail is False
     assert player.position == engine._jail_index + 3
     assert player.cash == cash_before - 50
@@ -373,17 +386,6 @@ def test_third_failed_attempt_requires_fine() -> None:
     assert player.jail_turns == 3
 
     _, _, decision_after, _ = engine.advance_until_decision(max_steps=1)
-    if decision_after is not None:
-        engine.apply_action(
-            {
-                "schema_version": "v1",
-                "decision_id": decision_after["decision_id"],
-                "action": decision_after["legal_actions"][0]["action"],
-                "args": {},
-            }
-        )
-    _, _, decision_after, _ = engine.advance_until_decision(max_steps=1)
-
     assert decision_after is not None
     assert decision_after["decision_type"] == "JAIL_DECISION"
     legal_actions = {entry["action"] for entry in decision_after["legal_actions"]}

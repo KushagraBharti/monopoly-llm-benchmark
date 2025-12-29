@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -50,6 +51,11 @@ def _parse_int_keyed_dict(value: Any, *, field: str) -> dict[int, Any]:
     return parsed
 
 
+def normalize_space_key(name: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "_", name.strip())
+    return cleaned.strip("_").upper()
+
+
 def _build_board_spec_tuples(spec: dict[str, Any]) -> list[tuple[int, str, str, str | None, int | None]]:
     spaces = _required_list(spec.get("spaces"), field="spaces")
     tuples: list[tuple[int, str, str, str | None, int | None]] = []
@@ -72,6 +78,10 @@ def _build_board_spec_tuples(spec: dict[str, Any]) -> list[tuple[int, str, str, 
 _SPEC = _load_board_spec()
 
 BOARD_SPEC: list[tuple[int, str, str, str | None, int | None]] = _build_board_spec_tuples(_SPEC)
+SPACE_KEY_BY_INDEX: dict[int, str] = {
+    index: normalize_space_key(name) for index, _, name, _, _ in BOARD_SPEC
+}
+SPACE_INDEX_BY_KEY: dict[str, int] = {space_key: index for index, space_key in SPACE_KEY_BY_INDEX.items()}
 
 PROPERTY_RENT_TABLES: dict[int, list[int]] = {
     key: [int(value) for value in _required_list(entry, field=f"property_rent_tables.{key}")]
@@ -86,6 +96,10 @@ UTILITY_RENT_MULTIPLIER = {
 TAX_AMOUNTS = {
     key: int(value)
     for key, value in _parse_int_keyed_dict(_SPEC.get("tax_amounts"), field="tax_amounts").items()
+}
+HOUSE_COST_BY_GROUP: dict[str, int] = {
+    str(key): int(value)
+    for key, value in _required_dict(_SPEC.get("house_cost_by_group"), field="house_cost_by_group").items()
 }
 
 OWNABLE_KINDS = {"PROPERTY", "RAILROAD", "UTILITY"}

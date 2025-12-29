@@ -660,25 +660,109 @@ class LlmRunner:
             entry["latency_ms"] = max(decision_end_ms - decision_start_ms, 0)
         return entry
 
-    @staticmethod
-    def _fallback_action(decision: dict[str, Any]) -> dict[str, Any]:
-        legal_actions = [entry["action"] for entry in decision.get("legal_actions", [])]
+    def _fallback_action(self, decision: dict[str, Any]) -> dict[str, Any]:
+        legal_actions = [entry["action"] for entry in decision.get("legal_actions", []) if entry.get("action")]
+        decision_id = decision["decision_id"]
+
+        def first_space_key(indices: list[int] | None) -> str | None:
+            if not indices:
+                return None
+            index = int(indices[0])
+            return self._space_key_by_index.get(index, f"SPACE_{index}")
+
+        post_turn = decision.get("post_turn", {})
+        post_options = post_turn.get("options", {}) if isinstance(post_turn, dict) else {}
+        liquidation = decision.get("liquidation", {})
+        liq_options = liquidation.get("options", {}) if isinstance(liquidation, dict) else {}
+
+        def build_plan_args(indices: list[int] | None) -> dict[str, Any] | None:
+            if not indices:
+                return None
+            space_key = first_space_key(indices)
+            if space_key is None:
+                return None
+            board = decision.get("state", {}).get("board", [])
+            matching = next((space for space in board if space.get("index") == indices[0]), {})
+            houses = int(matching.get("houses", 0))
+            hotel = bool(matching.get("hotel", False))
+            kind = "HOTEL" if hotel or houses >= 4 else "HOUSE"
+            return {"build_plan": [{"space_key": space_key, "kind": kind, "count": 1}]}
+
+        def sell_plan_args(indices: list[int] | None) -> dict[str, Any] | None:
+            if not indices:
+                return None
+            space_key = first_space_key(indices)
+            if space_key is None:
+                return None
+            board = decision.get("state", {}).get("board", [])
+            matching = next((space for space in board if space.get("index") == indices[0]), {})
+            hotel = bool(matching.get("hotel", False))
+            kind = "HOTEL" if hotel else "HOUSE"
+            return {"sell_plan": [{"space_key": space_key, "kind": kind, "count": 1}]}
+
         if "buy_property" in legal_actions:
             action_name = "buy_property"
+            args = {}
         elif "start_auction" in legal_actions:
             action_name = "start_auction"
+            args = {}
+        elif "end_turn" in legal_actions:
+            action_name = "end_turn"
+            args = {}
+        elif "declare_bankruptcy" in legal_actions:
+            action_name = "declare_bankruptcy"
+            args = {}
+        elif "mortgage_property" in legal_actions:
+            space_key = first_space_key(
+                post_options.get("mortgageable_space_indices")
+                or liq_options.get("mortgageable_space_indices")
+            )
+            if space_key:
+                action_name = "mortgage_property"
+                args = {"space_key": space_key}
+            else:
+                action_name = "declare_bankruptcy"
+                args = {}
+        elif "unmortgage_property" in legal_actions:
+            space_key = first_space_key(post_options.get("unmortgageable_space_indices"))
+            if space_key:
+                action_name = "unmortgage_property"
+                args = {"space_key": space_key}
+            else:
+                action_name = "end_turn"
+                args = {}
+        elif "sell_houses_or_hotel" in legal_actions:
+            args_payload = sell_plan_args(
+                post_options.get("sellable_building_space_indices")
+                or liq_options.get("sellable_building_space_indices")
+            )
+            if args_payload:
+                action_name = "sell_houses_or_hotel"
+                args = args_payload
+            elif "declare_bankruptcy" in legal_actions:
+                action_name = "declare_bankruptcy"
+                args = {}
+            else:
+                action_name = "end_turn"
+                args = {}
+        elif "build_houses_or_hotel" in legal_actions:
+            args_payload = build_plan_args(post_options.get("buildable_space_indices"))
+            if args_payload:
+                action_name = "build_houses_or_hotel"
+                args = args_payload
+            else:
+                action_name = "end_turn"
+                args = {}
         elif legal_actions:
             action_name = legal_actions[0]
+            args = {}
         else:
             action_name = "NOOP"
-
-        args: dict[str, Any] = {}
-        if action_name == "NOOP":
             args = {"reason": "fallback"}
 
         return {
             "schema_version": "v1",
-            "decision_id": decision["decision_id"],
+            "decision_id": decision_id,
             "action": action_name,
             "args": args,
         }
