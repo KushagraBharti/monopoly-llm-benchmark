@@ -23,23 +23,29 @@ def test_mock_determinism() -> None:
     expected = [
         {"type": "GAME_STARTED", "payload": {}},
         {"type": "TURN_STARTED", "payload": {}},
-        {"type": "DICE_ROLLED", "payload": {"d1": 1, "d2": 3, "is_double": False}},
-        {"type": "PLAYER_MOVED", "payload": {"from": 0, "to": 4, "passed_go": False}},
-        {"type": "CASH_CHANGED", "payload": {"player_id": "p1", "delta": -200, "reason": "TAX_INCOME"}},
-        {"type": "TURN_ENDED", "payload": {}},
-        {"type": "TURN_STARTED", "payload": {}},
-        {"type": "DICE_ROLLED", "payload": {"d1": 1, "d2": 4, "is_double": False}},
-        {"type": "PLAYER_MOVED", "payload": {"from": 0, "to": 5, "passed_go": False}},
+        {"type": "DICE_ROLLED", "payload": {"d1": 3, "d2": 6, "is_double": False}},
+        {"type": "PLAYER_MOVED", "payload": {"from": 0, "to": 9, "passed_go": False}},
         {
             "type": "LLM_DECISION_REQUESTED",
-            "payload": {"player_id": "p2", "decision_type": "BUY_OR_AUCTION_DECISION"},
+            "payload": {"player_id": "p1", "decision_type": "BUY_OR_AUCTION_DECISION"},
         },
         {
             "type": "LLM_DECISION_RESPONSE",
-            "payload": {"player_id": "p2", "action_name": "buy_property", "valid": True, "error": None},
+            "payload": {"player_id": "p1", "action_name": "buy_property", "valid": True, "error": None},
         },
-        {"type": "PROPERTY_PURCHASED", "payload": {"player_id": "p2", "space_index": 5, "price": 200}},
-        {"type": "CASH_CHANGED", "payload": {"player_id": "p2", "delta": -200, "reason": "buy_property"}},
+        {"type": "PROPERTY_PURCHASED", "payload": {"player_id": "p1", "space_index": 9, "price": 120}},
+        {"type": "CASH_CHANGED", "payload": {"player_id": "p1", "delta": -120, "reason": "buy_property"}},
+        {
+            "type": "LLM_DECISION_REQUESTED",
+            "payload": {"player_id": "p1", "decision_type": "POST_TURN_ACTION_DECISION"},
+        },
+        {
+            "type": "LLM_DECISION_RESPONSE",
+            "payload": {"player_id": "p1", "action_name": "end_turn", "valid": True, "error": None},
+        },
         {"type": "TURN_ENDED", "payload": {}},
+        {"type": "TURN_STARTED", "payload": {}},
+        {"type": "DICE_ROLLED", "payload": {"d1": 4, "d2": 1, "is_double": False}},
+        {"type": "PLAYER_MOVED", "payload": {"from": 0, "to": 5, "passed_go": False}},
     ]
     assert stripped == expected

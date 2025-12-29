@@ -786,6 +786,8 @@ def test_decisions_jsonl_pairs_and_applied(tmp_path) -> None:
     for entry in entries:
         if entry["phase"] != "decision_started":
             continue
+        if entry.get("decision_type") != "BUY_OR_AUCTION_DECISION":
+            continue
         decision_id = entry["decision_id"]
         if decision_id not in decision_order:
             decision_order.append(decision_id)

@@ -49,6 +49,7 @@ def test_buy_decision_and_purchase() -> None:
     engine = Engine(seed=123, players=players, run_id="run-buy", max_turns=5, ts_step_ms=1)
     engine.state.players[0].position = 10
     engine.state.active_player_id = "p1"
+    engine._rng.roll_dice = lambda: (1, 3)
     target_index = 14
     engine.state.board[target_index].owner_id = None
 
@@ -89,6 +90,7 @@ def test_start_auction_placeholder() -> None:
     engine = Engine(seed=123, players=players, run_id="run-auction", max_turns=5, ts_step_ms=1)
     engine.state.players[0].position = 10
     engine.state.active_player_id = "p1"
+    engine._rng.roll_dice = lambda: (1, 3)
     target_index = 14
     engine.state.board[target_index].owner_id = None
 
@@ -102,11 +104,13 @@ def test_start_auction_placeholder() -> None:
         "action": "start_auction",
         "args": {},
     }
-    _, action_events, _, _ = engine.apply_action(action)
+    _, action_events, new_decision, _ = engine.apply_action(action)
 
     assert engine.state.board[target_index].owner_id is None
     assert any(event["type"] == "LLM_DECISION_RESPONSE" for event in action_events)
-    assert any(event["type"] == "TURN_ENDED" for event in action_events)
+    assert any(event["type"] == "LLM_DECISION_REQUESTED" for event in action_events)
+    assert new_decision is not None
+    assert new_decision["decision_type"] == "POST_TURN_ACTION_DECISION"
     assert all(event["type"] != "PROPERTY_PURCHASED" for event in action_events)
 
 
@@ -118,6 +122,7 @@ def test_illegal_action_rejected() -> None:
     engine = Engine(seed=123, players=players, run_id="run-illegal", max_turns=5, ts_step_ms=1)
     engine.state.players[0].position = 10
     engine.state.active_player_id = "p1"
+    engine._rng.roll_dice = lambda: (1, 3)
 
     _, _, decision, _ = engine.advance_until_decision(max_steps=1)
     assert decision is not None
@@ -141,6 +146,7 @@ def test_rent_payment() -> None:
     engine = Engine(seed=123, players=players, run_id="run-rent", max_turns=3, ts_step_ms=1)
     engine.state.players[0].position = 10
     engine.state.active_player_id = "p1"
+    engine._rng.roll_dice = lambda: (1, 3)
     rent_index = 14
     engine.state.board[rent_index].owner_id = "p2"
 
@@ -164,6 +170,7 @@ def test_monopoly_doubles_base_rent() -> None:
     engine = Engine(seed=123, players=players, run_id="run-monopoly", max_turns=3, ts_step_ms=1)
     engine.state.players[0].position = 37
     engine.state.active_player_id = "p1"
+    engine._rng.roll_dice = lambda: (1, 3)
     engine.state.board[1].owner_id = "p2"
     engine.state.board[3].owner_id = "p2"
 
@@ -182,6 +189,7 @@ def test_bankruptcy_on_rent_transfers_assets() -> None:
     engine = Engine(seed=123, players=players, run_id="run-bankrupt", max_turns=3, ts_step_ms=1)
     engine.state.players[0].position = 10
     engine.state.active_player_id = "p1"
+    engine._rng.roll_dice = lambda: (1, 3)
     engine.state.players[0].cash = 5
     engine.state.board[1].owner_id = "p1"
     engine.state.board[1].mortgaged = True

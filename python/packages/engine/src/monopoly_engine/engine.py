@@ -263,14 +263,42 @@ class Engine:
                 )
                 if not is_double:
                     player.jail_turns += 1
-                    decision = self._maybe_start_post_turn_decision(
-                        events,
-                        player,
-                        rolled_double=False,
-                    )
-                    snapshot = self.get_snapshot()
-                    if decision is not None:
+                    if player.jail_turns >= 3:
+                        if player.cash < JAIL_FINE:
+                            self._handle_bankruptcy(
+                                player, None, events, turn_index=self.state.turn_index
+                            )
+                            player.in_jail = False
+                            player.jail_turns = 0
+                            self._end_turn(events, player, allow_extra_turn=False)
+                            snapshot = self.get_snapshot()
+                            if self._should_end_game():
+                                self._finish_game(events)
+                                snapshot = self.get_snapshot()
+                            return self.state, events, None, snapshot
+                        decision = self._build_jail_decision(player)
+                        self.state.phase = "AWAITING_DECISION"
+                        self._pending_decision = decision
+                        self._pending_turn = {
+                            "player_id": player.player_id,
+                            "decision_type": "JAIL_DECISION",
+                        }
+                        events.append(
+                            self._build_event(
+                                "LLM_DECISION_REQUESTED",
+                                self._actor_engine(),
+                                {
+                                    "decision_id": decision["decision_id"],
+                                    "player_id": player.player_id,
+                                    "decision_type": decision["decision_type"],
+                                },
+                                turn_index=self.state.turn_index,
+                            )
+                        )
+                        snapshot = self.get_snapshot()
                         return self.state, events, decision, snapshot
+                    self._end_turn(events, player, allow_extra_turn=False)
+                    snapshot = self.get_snapshot()
                     if self._should_end_game():
                         self._finish_game(events)
                         snapshot = self.get_snapshot()
@@ -279,7 +307,7 @@ class Engine:
                 player.in_jail = False
                 player.jail_turns = 0
                 player.doubles_count = 0
-                decision, landed_index = self._move_player(
+                decision, decision_space_index = self._move_player(
                     player,
                     d1 + d2,
                     events,
@@ -292,7 +320,11 @@ class Engine:
                     self._pending_decision = decision
                     self._pending_turn = {
                         "rolled_double": False,
-                        "space_index": landed_index,
+                        "space_index": (
+                            decision_space_index
+                            if decision_space_index is not None
+                            else player.position
+                        ),
                         "player_id": player.player_id,
                     }
                     events.append(
@@ -354,7 +386,8 @@ class Engine:
             if pending_payment is None:
                 raise ValueError("Missing pending payment context for liquidation.")
             if action_name == "declare_bankruptcy":
-                creditor_id = pending_payment.get("owed_to_player_id")
+                payment = pending_payment.get("payment", {})
+                creditor_id = pending_payment.get("owed_to_player_id") or payment.get("to_player_id")
                 creditor = self._find_player(creditor_id) if creditor_id else None
                 self._handle_bankruptcy(player, creditor, events, turn_index=self.state.turn_index)
                 self._pending_payment = None
@@ -457,7 +490,7 @@ class Engine:
             self._end_turn(events, current_player, allow_extra_turn=False)
             return events, None
 
-        decision, landed_index = self._move_player(
+        decision, decision_space_index = self._move_player(
             current_player,
             d1 + d2,
             events,
@@ -469,7 +502,9 @@ class Engine:
             self._pending_decision = decision
             self._pending_turn = {
                 "rolled_double": is_double,
-                "space_index": landed_index,
+                "space_index": (
+                    decision_space_index if decision_space_index is not None else current_player.position
+                ),
                 "player_id": current_id,
             }
             events.append(
@@ -501,7 +536,7 @@ class Engine:
         *,
         turn_index: int,
         rolled_double: bool,
-    ) -> tuple[DecisionPoint | None, int]:
+    ) -> tuple[DecisionPoint | None, int | None]:
         from_pos = player.position
         board_size = len(self.state.board)
         to_pos = (from_pos + steps) % board_size
@@ -518,7 +553,7 @@ class Engine:
         if passed_go:
             self._apply_cash_delta(player, 200, "PASS_GO", events, turn_index=turn_index)
         space = self.state.board[to_pos]
-        decision = self._resolve_landing(
+        decision, decision_space_index = self._resolve_landing(
             player,
             space,
             steps,
@@ -526,7 +561,7 @@ class Engine:
             turn_index=turn_index,
             rolled_double=rolled_double,
         )
-        return decision, to_pos
+        return decision, decision_space_index
 
     def _send_player_to_jail(
         self,
@@ -601,7 +636,7 @@ class Engine:
             )
             self._end_turn(events, player, allow_extra_turn=False)
             return None
-        decision, landed_index = self._move_player(
+        decision, decision_space_index = self._move_player(
             player,
             d1 + d2,
             events,
@@ -613,7 +648,9 @@ class Engine:
             self._pending_decision = decision
             self._pending_turn = {
                 "rolled_double": is_double,
-                "space_index": landed_index,
+                "space_index": (
+                    decision_space_index if decision_space_index is not None else player.position
+                ),
                 "player_id": player.player_id,
             }
             events.append(
@@ -640,7 +677,7 @@ class Engine:
         *,
         turn_index: int,
         rolled_double: bool,
-    ) -> DecisionPoint | None:
+    ) -> tuple[DecisionPoint | None, int | None]:
         if space.kind == "CHANCE":
             return self._draw_card(
                 "CHANCE",
@@ -660,12 +697,12 @@ class Engine:
         if space.kind in OWNABLE_KINDS:
             if space.owner_id is None:
                 self.state.phase = "AWAITING_DECISION"
-                return self._build_buy_or_auction_decision(player, space)
+                return self._build_buy_or_auction_decision(player, space), space.index
             if space.owner_id == player.player_id:
-                return None
+                return None, None
             owner = self._find_player(space.owner_id)
             if owner is None or owner.bankrupt or space.mortgaged:
-                return None
+                return None, None
             rent = self._calculate_rent(space, owner, dice_total)
             if rent > 0:
                 decision = self._pay_rent(
@@ -678,8 +715,8 @@ class Engine:
                     rolled_double=rolled_double,
                 )
                 if decision is not None:
-                    return decision
-            return None
+                    return decision, space.index
+            return None, None
         if space.kind == "TAX":
             amount = TAX_AMOUNTS.get(space.index, 0)
             if amount > 0:
@@ -693,8 +730,8 @@ class Engine:
                     rolled_double=rolled_double,
                 )
                 if decision is not None:
-                    return decision
-            return None
+                    return decision, space.index
+            return None, None
         if space.kind == "GO_TO_JAIL":
             self._send_player_to_jail(
                 player,
@@ -702,7 +739,7 @@ class Engine:
                 reason="GO_TO_JAIL",
                 turn_index=turn_index,
             )
-        return None
+        return None, None
 
     def _draw_card(
         self,
@@ -712,10 +749,10 @@ class Engine:
         *,
         turn_index: int,
         rolled_double: bool,
-    ) -> DecisionPoint | None:
+    ) -> tuple[DecisionPoint | None, int | None]:
         deck = self._chance_deck if deck_type == "CHANCE" else self._community_chest_deck
         if not deck:
-            return None
+            return None, None
         card_id = deck.pop(0)
         events.append(
             self._build_event(
@@ -728,8 +765,8 @@ class Engine:
         if card_id == "GET_OUT_OF_JAIL_FREE":
             player.get_out_of_jail_cards += 1
             self._jail_card_sources.setdefault(player.player_id, []).append(deck_type)
-            return None
-        decision = self._apply_card_effect(
+            return None, None
+        decision, decision_space_index = self._apply_card_effect(
             deck_type,
             card_id,
             player,
@@ -738,7 +775,7 @@ class Engine:
             rolled_double=rolled_double,
         )
         deck.append(card_id)
-        return decision
+        return decision, decision_space_index
 
     def _apply_card_effect(
         self,
@@ -749,7 +786,7 @@ class Engine:
         *,
         turn_index: int,
         rolled_double: bool,
-    ) -> DecisionPoint | None:
+    ) -> tuple[DecisionPoint | None, int | None]:
         if card_id == "ADVANCE_TO_GO":
             return self._move_player_to(
                 player,
@@ -800,7 +837,7 @@ class Engine:
                 )
             owner = self._find_player(space.owner_id)
             if owner is None or owner.bankrupt:
-                return None
+                return None, None
             d1, d2 = self._rng.roll_dice()
             events.append(
                 self._build_event(
@@ -818,13 +855,16 @@ class Engine:
                 kind="RENT",
                 space_index=space.index,
             )
-            return self._request_payment(
+            decision = self._request_payment(
                 player,
                 payment,
                 events,
                 turn_index=turn_index,
                 rolled_double=rolled_double,
             )
+            if decision is None:
+                return None, None
+            return decision, space.index
         if card_id in {"GO_TO_NEAREST_RAILROAD_A", "GO_TO_NEAREST_RAILROAD_B"}:
             target = self._find_next_index(player.position, "RAILROAD")
             space = self.state.board[target]
@@ -846,10 +886,10 @@ class Engine:
                 )
             owner = self._find_player(space.owner_id)
             if owner is None or owner.bankrupt:
-                return None
+                return None, None
             owned = self._count_owned(owner.player_id, "RAILROAD")
             if owned <= 0:
-                return None
+                return None, None
             rent = RAILROAD_RENTS[min(owned, 4) - 1] * 2
             payment = self._build_payment_entry(
                 rent,
@@ -858,16 +898,19 @@ class Engine:
                 kind="RENT",
                 space_index=space.index,
             )
-            return self._request_payment(
+            decision = self._request_payment(
                 player,
                 payment,
                 events,
                 turn_index=turn_index,
                 rolled_double=rolled_double,
             )
+            if decision is None:
+                return None, None
+            return decision, space.index
         if card_id == "BANK_PAYS_YOU_DIVIDEND_50":
             self._apply_cash_delta(player, 50, card_id, events, turn_index=turn_index)
-            return None
+            return None, None
         if card_id == "GO_BACK_3_SPACES":
             target = (player.position - 3) % len(self.state.board)
             return self._move_player_to(
@@ -885,7 +928,7 @@ class Engine:
                 reason=f"{deck_type}_CARD",
                 turn_index=turn_index,
             )
-            return None
+            return None, None
         if card_id == "GENERAL_REPAIRS":
             total = self._repairs_cost(
                 player.player_id,
@@ -894,23 +937,29 @@ class Engine:
             )
             if total > 0:
                 payment = self._build_payment_entry(total, None, card_id, kind="CARD")
-                return self._request_payment(
+                decision = self._request_payment(
                     player,
                     payment,
                     events,
                     turn_index=turn_index,
                     rolled_double=rolled_double,
                 )
-            return None
+                if decision is None:
+                    return None, None
+                return decision, player.position
+            return None, None
         if card_id == "PAY_POOR_TAX_15":
             payment = self._build_payment_entry(15, None, card_id, kind="CARD")
-            return self._request_payment(
+            decision = self._request_payment(
                 player,
                 payment,
                 events,
                 turn_index=turn_index,
                 rolled_double=rolled_double,
             )
+            if decision is None:
+                return None, None
+            return decision, player.position
         if card_id == "TAKE_TRIP_TO_READING_RR":
             target = self._space_index_by_name.get("Reading Railroad", 5)
             return self._move_player_to(
@@ -937,37 +986,43 @@ class Engine:
                 for other in self.state.players
                 if other.player_id != player.player_id and not other.bankrupt
             ]
-            return self._process_payment_queue(
+            decision = self._process_payment_queue(
                 player,
                 payments,
                 events,
                 turn_index=turn_index,
                 rolled_double=rolled_double,
             )
+            if decision is None:
+                return None, None
+            return decision, player.position
         if card_id == "BUILDING_LOAN_MATURES_RECEIVE_150":
             self._apply_cash_delta(player, 150, card_id, events, turn_index=turn_index)
-            return None
+            return None, None
         if card_id == "BANK_ERROR_COLLECT_200":
             self._apply_cash_delta(player, 200, card_id, events, turn_index=turn_index)
-            return None
+            return None, None
         if card_id == "DOCTOR_FEE_PAY_50":
             payment = self._build_payment_entry(50, None, card_id, kind="CARD")
-            return self._request_payment(
+            decision = self._request_payment(
                 player,
                 payment,
                 events,
                 turn_index=turn_index,
                 rolled_double=rolled_double,
             )
+            if decision is None:
+                return None, None
+            return decision, player.position
         if card_id == "SALE_OF_STOCK_COLLECT_50":
             self._apply_cash_delta(player, 50, card_id, events, turn_index=turn_index)
-            return None
+            return None, None
         if card_id == "HOLIDAY_FUND_RECEIVE_100":
             self._apply_cash_delta(player, 100, card_id, events, turn_index=turn_index)
-            return None
+            return None, None
         if card_id == "INCOME_TAX_REFUND_COLLECT_20":
             self._apply_cash_delta(player, 20, card_id, events, turn_index=turn_index)
-            return None
+            return None, None
         if card_id == "BIRTHDAY_COLLECT_10_FROM_EACH_PLAYER":
             for other in self.state.players:
                 if other.player_id == player.player_id or other.bankrupt:
@@ -977,31 +1032,37 @@ class Engine:
                     self._apply_cash_delta(player, 10, card_id, events, turn_index=turn_index)
                 else:
                     self._handle_bankruptcy(other, player, events, turn_index=turn_index)
-            return None
+            return None, None
         if card_id == "LIFE_INSURANCE_COLLECT_100":
             self._apply_cash_delta(player, 100, card_id, events, turn_index=turn_index)
-            return None
+            return None, None
         if card_id == "HOSPITAL_FEES_PAY_100":
             payment = self._build_payment_entry(100, None, card_id, kind="CARD")
-            return self._request_payment(
+            decision = self._request_payment(
                 player,
                 payment,
                 events,
                 turn_index=turn_index,
                 rolled_double=rolled_double,
             )
+            if decision is None:
+                return None, None
+            return decision, player.position
         if card_id == "SCHOOL_FEES_PAY_50":
             payment = self._build_payment_entry(50, None, card_id, kind="CARD")
-            return self._request_payment(
+            decision = self._request_payment(
                 player,
                 payment,
                 events,
                 turn_index=turn_index,
                 rolled_double=rolled_double,
             )
+            if decision is None:
+                return None, None
+            return decision, player.position
         if card_id == "CONSULTANCY_FEE_COLLECT_25":
             self._apply_cash_delta(player, 25, card_id, events, turn_index=turn_index)
-            return None
+            return None, None
         if card_id == "STREET_REPAIRS":
             total = self._repairs_cost(
                 player.player_id,
@@ -1010,21 +1071,24 @@ class Engine:
             )
             if total > 0:
                 payment = self._build_payment_entry(total, None, card_id, kind="CARD")
-                return self._request_payment(
+                decision = self._request_payment(
                     player,
                     payment,
                     events,
                     turn_index=turn_index,
                     rolled_double=rolled_double,
                 )
-            return None
+                if decision is None:
+                    return None, None
+                return decision, player.position
+            return None, None
         if card_id == "BEAUTY_CONTEST_COLLECT_10":
             self._apply_cash_delta(player, 10, card_id, events, turn_index=turn_index)
-            return None
+            return None, None
         if card_id == "INHERIT_100":
             self._apply_cash_delta(player, 100, card_id, events, turn_index=turn_index)
-            return None
-        return None
+            return None, None
+        return None, None
 
     def _move_player_to(
         self,
@@ -1035,7 +1099,7 @@ class Engine:
         turn_index: int,
         collect_go: bool,
         rolled_double: bool,
-    ) -> DecisionPoint | None:
+    ) -> tuple[DecisionPoint | None, int | None]:
         target = self._move_player_no_resolve(
             player,
             target_index,
