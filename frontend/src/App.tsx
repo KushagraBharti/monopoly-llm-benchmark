@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getApiBaseUrl, getWsUrl, WsClient } from '@/net/ws';
 import { useGameStore } from '@/state/store';
 import { Board } from '@/components/board/Board';
-import { PlayerPanel } from '@/components/panels/PlayerPanel';
-import { OwnershipPanel } from '@/components/panels/OwnershipPanel';
+import { PlayerStackPanel } from '@/components/panels/PlayerStackPanel';
 import { EventFeed } from '@/components/feed/EventFeed';
 import { ChatFeed } from '@/components/feed/ChatFeed';
 import { GameControls } from '@/components/panels/GameControls';
@@ -121,16 +120,16 @@ function App() {
     <div className="h-screen w-screen bg-neo-bg text-black font-sans overflow-hidden flex relative">
 
       {/* Sidebar: Left Panel (Players & Controls & Ownership) */}
-      <aside className="w-80 h-full border-r-4 border-black bg-white flex flex-col z-30 shadow-neo-lg">
-        <header className="p-2 border-b-2 border-black bg-gray-50 shrink-0">
-          <h1 className="text-xl font-black uppercase tracking-tighter leading-none mb-1">
+      <aside className="w-[550px] h-full border-r-4 border-black bg-white flex flex-col z-30 shadow-neo-lg">
+        <header className="p-1.5 border-b-2 border-black bg-gray-50 shrink-0">
+          <h1 className="text-lg font-black uppercase tracking-tighter leading-none mb-0.5">
             Monopoly <span className="text-neo-pink">Arena</span>
           </h1>
 
-          <div className="flex flex-col gap-1 mt-0.5">
+          <div className="flex flex-col gap-0.5 mt-0.5">
             {/* Connection Status */}
             <div className="flex justify-between items-center">
-              <span className="text-[9px] font-bold uppercase text-gray-500 flex items-center gap-1">
+              <span className="text-[8px] font-bold uppercase text-gray-500 flex items-center gap-1">
                 <span className={cn(
                   "w-1.5 h-1.5 rounded-full",
                   isConnected ? "bg-neo-green" : "bg-neo-pink animate-pulse"
@@ -139,7 +138,7 @@ function App() {
               </span>
               <NeoBadge
                 variant={isConnected ? 'success' : 'error'}
-                className={cn(!isConnected && "animate-pulse", "text-[9px] py-0 px-1 h-3")}
+                className={cn(!isConnected && "animate-pulse", "text-[8px] py-0 px-1 h-3")}
               >
                 {isConnected ? 'ONLINE' : 'OFFLINE'}
               </NeoBadge>
@@ -147,7 +146,7 @@ function App() {
 
             {/* Run Status */}
             <div className="flex justify-between items-center">
-              <span className="text-[9px] font-bold uppercase text-gray-500">
+              <span className="text-[8px] font-bold uppercase text-gray-500">
                 Run Status
               </span>
               <NeoBadge
@@ -157,7 +156,7 @@ function App() {
                     runState === 'COMPLETE' ? 'success' :
                       'neutral'
                 }
-                className="text-[9px] py-0 px-1 h-3"
+                className="text-[8px] py-0 px-1 h-3"
               >
                 {runState === 'COMPLETE' && 'OK '}
                 {runState === 'RUNNING' && '>> '}
@@ -168,17 +167,18 @@ function App() {
         </header>
 
         <div className="flex-1 flex flex-col min-h-0 bg-neo-bg">
-          {/* Controls & Players - FIXED (Non-scrolling area to ensure visibility) */}
+          {/* Controls - Fixed */}
           <div className="shrink-0 flex flex-col gap-1 p-1 border-b-2 border-black bg-white z-10">
             <GameControls />
-            <PlayerPanel />
           </div>
 
-          {/* Scrolling Area for Deeds/Auction which can be long */}
+          {/* Scrolling Area for Players/Auction/Trade */}
           <div className="flex-1 overflow-y-auto p-1 min-h-0 relative bg-neo-bg">
-            <OwnershipPanel />
+            <div className="mb-2">
+              <PlayerStackPanel />
+            </div>
             {(showAuction || showTrade) && (
-              <div className="mt-2 flex flex-col gap-2">
+              <div className="flex flex-col gap-2">
                 <AuctionPanel visible={showAuction} />
                 <TradeInspectorPanel visible={showTrade} />
               </div>

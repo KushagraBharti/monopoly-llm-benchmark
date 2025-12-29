@@ -87,6 +87,31 @@ export const selectPropertiesByPlayer = (
   return map;
 };
 
+const OWNABLE_KINDS = new Set<Space["kind"]>(["PROPERTY", "RAILROAD", "UTILITY"]);
+
+export const selectOwnedSpaces = (snapshot: StateSnapshot | null, playerId: string): Space[] => {
+  if (!snapshot) return [];
+  return snapshot.board
+    .filter((space) => space.owner_id === playerId && OWNABLE_KINDS.has(space.kind))
+    .sort((a, b) => a.index - b.index);
+};
+
+export const computeNetWorthSimple = (cash: number, spaces: Space[]): number => {
+  return spaces.reduce((total, space) => {
+    const price = space.price ?? 0;
+    const mortgagePenalty = space.mortgaged ? Math.floor(price / 2) : 0;
+    return total + price - mortgagePenalty;
+  }, cash);
+};
+
+export const selectNetWorthSimple = (snapshot: StateSnapshot | null, playerId: string): number => {
+  if (!snapshot) return 0;
+  const player = snapshot.players.find((entry) => entry.player_id === playerId);
+  const cash = player?.cash ?? 0;
+  const spaces = selectOwnedSpaces(snapshot, playerId);
+  return computeNetWorthSimple(cash, spaces);
+};
+
 export type PlayerStanding = {
   player_id: string;
   name: string;
@@ -99,13 +124,11 @@ export type PlayerStanding = {
 
 export const selectLeaderboard = (snapshot: StateSnapshot | null): PlayerStanding[] => {
   if (!snapshot) return [];
-  const derivedNetWorth = snapshot.derived?.net_worth_estimate_by_player ?? {};
   const propertyMap = selectPropertiesByPlayer(snapshot);
 
   return snapshot.players.map((player) => {
     const properties = propertyMap[player.player_id] ?? [];
-    const fallbackPropertyValue = properties.reduce((sum, space) => sum + (space.price ?? 0), 0);
-    const netWorthEstimate = derivedNetWorth[player.player_id] ?? player.cash + fallbackPropertyValue;
+    const netWorthEstimate = computeNetWorthSimple(player.cash, properties);
     return {
       player_id: player.player_id,
       name: player.name,
