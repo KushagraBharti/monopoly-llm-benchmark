@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getApiBaseUrl, getWsUrl, WsClient } from '@/net/ws';
 import { useGameStore } from '@/state/store';
 import { Board } from '@/components/board/Board';
+import { BoardEffectsLayer } from '@/components/board/BoardEffectsLayer';
 import { PlayerStackPanel } from '@/components/panels/PlayerStackPanel';
 import { EventFeed } from '@/components/feed/EventFeed';
 import { ChatFeed } from '@/components/feed/ChatFeed';
@@ -153,8 +154,8 @@ function App() {
                 variant={
                   runState === 'RUNNING' ? 'info' :
                     runState === 'PAUSED' ? 'warning' :
-                    runState === 'COMPLETE' ? 'success' :
-                      'neutral'
+                      runState === 'COMPLETE' ? 'success' :
+                        'neutral'
                 }
                 className="text-[8px] py-0 px-1 h-3"
               >
@@ -198,6 +199,7 @@ function App() {
         />
 
         <Board spaces={snapshot?.board || []} className="h-full max-h-[95vh] w-auto aspect-square shadow-2xl relative z-10" />
+        <BoardEffectsLayer />
         <DecisionOverlay />
       </main>
 
