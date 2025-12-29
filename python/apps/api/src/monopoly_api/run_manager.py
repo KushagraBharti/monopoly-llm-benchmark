@@ -5,7 +5,7 @@ import copy
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import WebSocket
 
@@ -19,7 +19,13 @@ from monopoly_api.decision_index import DecisionIndex
 
 
 class RunManager:
-    def __init__(self, runs_dir: Path) -> None:
+    def __init__(
+        self,
+        runs_dir: Path,
+        *,
+        runner_factory: Callable[..., LlmRunner] | None = None,
+        openrouter_factory: Callable[[], OpenRouterClient] | None = None,
+    ) -> None:
         self._runs_dir = runs_dir
         self._clients: set[WebSocket] = set()
         self._runner: LlmRunner | None = None
@@ -33,23 +39,29 @@ class RunManager:
         self._decision_index: DecisionIndex | None = None
         self._paused = False
         self._lock = asyncio.Lock()
+        self._runner_factory = runner_factory or LlmRunner
+        self._openrouter_factory = openrouter_factory or OpenRouterClient
 
     async def start_run(self, seed: int, players: list[PlayerConfig]) -> str:
         async with self._lock:
-            if self._runner_task is not None:
-                await self._stop_run_locked()
             if len(players) != EXPECTED_PLAYER_COUNT:
                 raise ValueError(f"Exactly {EXPECTED_PLAYER_COUNT} players are required for LLM runs.")
             run_id = self._generate_run_id(seed, players)
+            if self._is_running() and self._run_id == run_id:
+                return run_id
+            if self._runner_task is not None and self._runner_task.done():
+                self._runner_task = None
+            if self._is_running():
+                await self._stop_run_locked()
             self._run_id = run_id
             self._telemetry = init_run_files(self._runs_dir, run_id)
             self._decision_index = DecisionIndex(self._telemetry)
             self._players = players
-            self._runner = LlmRunner(
+            self._runner = self._runner_factory(
                 seed=seed,
                 players=players,
                 run_id=run_id,
-                openrouter=OpenRouterClient(),
+                openrouter=self._openrouter_factory(),
                 run_files=self._telemetry,
             )
             self._paused = False
@@ -57,7 +69,7 @@ class RunManager:
             self._turn_index = self._snapshot["turn_index"]
             self._seq = None
             await self.broadcast_snapshot(self._snapshot)
-            self._runner_task = asyncio.create_task(self._run_loop())
+            self._runner_task = asyncio.create_task(self._run_loop(run_id))
             return run_id
 
     async def stop_run(self) -> None:
@@ -65,7 +77,7 @@ class RunManager:
             await self._stop_run_locked()
 
     def get_status(self) -> dict[str, Any]:
-        running = self._runner_task is not None and not self._runner_task.done()
+        running = self._is_running()
         return {
             "running": running,
             "paused": self._paused,
@@ -105,10 +117,11 @@ class RunManager:
             self._telemetry.write_snapshot(snapshot)
         await self._broadcast(make_snapshot(snapshot))
 
-    async def _run_loop(self) -> None:
-        if self._runner is None:
+    async def _run_loop(self, run_id: str) -> None:
+        runner = self._runner
+        if runner is None or self._run_id != run_id:
             return
-        await self._runner.run(
+        await runner.run(
             on_event=self.broadcast_event,
             on_snapshot=self.broadcast_snapshot,
             on_summary=self._write_summary,
@@ -140,8 +153,16 @@ class RunManager:
         if self._runner is not None:
             self._runner.request_stop("STOPPED")
             self._runner.resume()
-        await self._runner_task
+        task = self._runner_task
+        if task is not None and not task.done():
+            task.cancel()
+        if task is not None:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         self._runner_task = None
+        self._runner = None
         self._paused = False
 
     @staticmethod
@@ -167,15 +188,17 @@ class RunManager:
 
     async def pause(self) -> None:
         async with self._lock:
-            if self._runner is None or self._runner_task is None or self._runner_task.done():
+            if self._runner is None or not self._is_running() or self._paused:
                 return
             self._paused = True
             self._runner.pause()
 
     async def resume(self) -> None:
         async with self._lock:
-            if self._runner is None or self._runner_task is None or self._runner_task.done():
+            if self._runner is None or not self._is_running():
                 self._paused = False
+                return
+            if not self._paused:
                 return
             self._paused = False
             self._runner.resume()
@@ -189,3 +212,6 @@ class RunManager:
         if self._decision_index is None:
             return None
         return self._decision_index.get_bundle(decision_id)
+
+    def _is_running(self) -> bool:
+        return self._runner_task is not None and not self._runner_task.done()

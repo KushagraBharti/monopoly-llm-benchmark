@@ -95,6 +95,8 @@ class LlmRunner:
         self._resume_event = asyncio.Event()
         self._resume_event.set()
         self._pending_resolution: PendingResolution | None = None
+        self._advance_lock = asyncio.Lock()
+        self._applied_decision_ids: set[str] = set()
 
     def request_stop(self, reason: str = "STOPPED") -> None:
         self._engine.request_stop(reason)
@@ -175,7 +177,8 @@ class LlmRunner:
 
         while True:
             await self._await_resume()
-            _, events, decision, _ = self._engine.advance_until_decision(max_steps=1)
+            async with self._advance_lock:
+                _, events, decision, _ = self._engine.advance_until_decision(max_steps=1)
             if not events and decision is None:
                 break
             for event in events:
@@ -193,10 +196,15 @@ class LlmRunner:
                     continue
                 decision = pending.decision
                 outcome = self._validate_outcome_after_pause(decision, pending.outcome)
-                _, action_events, _, _ = self._engine.apply_action(
-                    outcome.action,
-                    decision_meta=outcome.decision_meta,
-                )
+                async with self._advance_lock:
+                    decision_id = decision["decision_id"]
+                    if decision_id in self._applied_decision_ids:
+                        raise RuntimeError(f"Decision {decision_id} already applied.")
+                    _, action_events, _, _ = self._engine.apply_action(
+                        outcome.action,
+                        decision_meta=outcome.decision_meta,
+                    )
+                    self._applied_decision_ids.add(decision_id)
                 if self._run_files is not None:
                     self._run_files.write_action(
                         {

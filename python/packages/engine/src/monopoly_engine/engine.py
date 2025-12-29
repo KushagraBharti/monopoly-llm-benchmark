@@ -67,6 +67,7 @@ class Engine:
         self._pending_decision: DecisionPoint | None = None
         self._pending_turn: dict[str, Any] | None = None
         self._pending_payment: dict[str, Any] | None = None
+        self._applied_decision_ids: set[str] = set()
         self.state = create_initial_state(run_id, seed, players)
         self._jail_index = next(
             (space.index for space in self.state.board if space.kind == "JAIL"),
@@ -134,6 +135,9 @@ class Engine:
         events: list[Event] = []
         snapshot: dict[str, Any] | None = None
 
+        decision_id = action.get("decision_id")
+        if isinstance(decision_id, str) and decision_id in self._applied_decision_ids:
+            raise ValueError("Decision id already applied.")
         if self._pending_decision is None or self._pending_turn is None:
             raise ValueError("No pending decision to apply.")
 
@@ -141,6 +145,7 @@ class Engine:
         error = self._validate_action(action, decision)
         if error:
             raise ValueError(error)
+        self._applied_decision_ids.add(decision["decision_id"])
 
         pending_turn = self._pending_turn
         player_id = decision["player_id"]

@@ -1,17 +1,23 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { getApiBaseUrl } from '@/net/ws';
 import { useGameStore } from '@/state/store';
 import { NeoBadge, NeoCard, cn } from '@/components/ui/NeoPrimitive';
 
 export const GameControls = () => {
   const [loadingAction, setLoadingAction] = useState<null | 'start' | 'stop' | 'pause' | 'resume'>(null);
+  const [pendingStart, setPendingStart] = useState(false);
+  const [pendingResume, setPendingResume] = useState(false);
+  const pendingStartRef = useRef(false);
+  const pendingResumeRef = useRef(false);
   const runStatus = useGameStore((state) => state.runStatus);
   const setRunStatus = useGameStore((state) => state.setRunStatus);
   const resetLogs = useGameStore((state) => state.resetLogs);
   const apiBase = getApiBaseUrl();
 
   const handleStart = async () => {
-    if (loadingAction) return;
+    if (loadingAction || pendingStartRef.current || pendingResumeRef.current || runStatus.running) return;
+    pendingStartRef.current = true;
+    setPendingStart(true);
     setLoadingAction('start');
     try {
       await fetch(`${apiBase}/run/start`, {
@@ -24,11 +30,13 @@ export const GameControls = () => {
       alert('Failed to start run');
     } finally {
       setLoadingAction(null);
+      pendingStartRef.current = false;
+      setPendingStart(false);
     }
   };
 
   const handleStop = async () => {
-    if (loadingAction) return;
+    if (loadingAction || pendingStartRef.current || pendingResumeRef.current) return;
     setLoadingAction('stop');
     resetLogs();
     setRunStatus({ running: false, paused: false });
@@ -43,7 +51,7 @@ export const GameControls = () => {
   };
 
   const handlePause = async () => {
-    if (loadingAction || !runStatus.running || runStatus.paused) return;
+    if (loadingAction || pendingStartRef.current || pendingResumeRef.current || !runStatus.running || runStatus.paused) return;
     setLoadingAction('pause');
     try {
       await fetch(`${apiBase}/run/pause`, { method: 'POST' });
@@ -57,7 +65,9 @@ export const GameControls = () => {
   };
 
   const handleResume = async () => {
-    if (loadingAction || !runStatus.running || !runStatus.paused) return;
+    if (loadingAction || pendingStartRef.current || pendingResumeRef.current || !runStatus.running || !runStatus.paused) return;
+    pendingResumeRef.current = true;
+    setPendingResume(true);
     setLoadingAction('resume');
     try {
       await fetch(`${apiBase}/run/resume`, { method: 'POST' });
@@ -67,12 +77,14 @@ export const GameControls = () => {
       alert('Failed to resume run');
     } finally {
       setLoadingAction(null);
+      pendingResumeRef.current = false;
+      setPendingResume(false);
     }
   };
 
   const isRunning = runStatus.running;
   const isPaused = runStatus.paused;
-  const isLoading = loadingAction !== null;
+  const isLoading = loadingAction !== null || pendingStart || pendingResume;
 
   return (
     <NeoCard className="flex flex-col gap-2 p-2 border-neo-border bg-white shadow-neo">
@@ -91,10 +103,10 @@ export const GameControls = () => {
       <div className="grid grid-cols-2 gap-3">
         <button
           onClick={handleStart}
-          disabled={isLoading}
+          disabled={isLoading || isRunning}
           className="brutal-btn bg-neo-black text-white hover:bg-neutral-800 disabled:opacity-50 w-full"
         >
-          {isRunning ? 'RESTART' : 'START RUN'}
+          {isRunning ? 'RUNNING' : 'START RUN'}
         </button>
 
         <button
