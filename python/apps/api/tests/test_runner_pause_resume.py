@@ -63,7 +63,7 @@ def _tool_call_response(name: str, args: dict[str, Any]) -> OpenRouterResult:
 
 class ImmediateOpenRouter:
     async def create_chat_completion(self, *_: Any, **__: Any) -> OpenRouterResult:
-        return _tool_call_response("BUY_PROPERTY", {"space_index": 0})
+        return _tool_call_response("buy_property", {})
 
 
 class DelayedOpenRouter:
@@ -74,7 +74,7 @@ class DelayedOpenRouter:
     async def create_chat_completion(self, *_: Any, **__: Any) -> OpenRouterResult:
         self.started.set()
         await self.allow_response.wait()
-        return _tool_call_response("BUY_PROPERTY", {"space_index": 0})
+        return _tool_call_response("buy_property", {})
 
 
 def test_pause_blocks_event_advancement_until_resume(tmp_path) -> None:

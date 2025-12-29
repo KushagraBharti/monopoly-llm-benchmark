@@ -25,8 +25,8 @@
       "enum": [
         "PRE_ROLL",
         "POST_LAND",
-        "JAIL_CHOICE",
-        "BUY_DECISION",
+        "JAIL_DECISION",
+        "BUY_OR_AUCTION_DECISION",
         "AUCTION_BID",
         "END_TURN",
         "TRADE_RESPONSE"
@@ -70,157 +70,7 @@
             "additionalProperties": false,
             "required": ["action", "args_schema"],
             "properties": {
-              "action": { "const": "BUY_PROPERTY" },
-              "args_schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["type", "additionalProperties", "required", "properties"],
-                "properties": {
-                  "type": { "const": "object" },
-                  "additionalProperties": { "const": false },
-                  "required": {
-                    "type": "array",
-                    "minItems": 1,
-                    "maxItems": 1,
-                    "items": { "const": "space_index" }
-                  },
-                  "properties": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["space_index"],
-                    "properties": {
-                      "space_index": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": ["type", "minimum", "maximum"],
-                        "properties": {
-                          "type": { "const": "integer" },
-                          "minimum": { "const": 0 },
-                          "maximum": { "const": 39 }
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "ui_hints": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "highlight_space_indices": {
-                    "type": "array",
-                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
-                  }
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["action", "args_schema"],
-            "properties": {
-              "action": { "const": "DECLINE_PROPERTY" },
-              "args_schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["type", "additionalProperties", "required", "properties"],
-                "properties": {
-                  "type": { "const": "object" },
-                  "additionalProperties": { "const": false },
-                  "required": {
-                    "type": "array",
-                    "minItems": 1,
-                    "maxItems": 1,
-                    "items": { "const": "space_index" }
-                  },
-                  "properties": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["space_index"],
-                    "properties": {
-                      "space_index": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": ["type", "minimum", "maximum"],
-                        "properties": {
-                          "type": { "const": "integer" },
-                          "minimum": { "const": 0 },
-                          "maximum": { "const": 39 }
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "ui_hints": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "highlight_space_indices": {
-                    "type": "array",
-                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
-                  }
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["action", "args_schema"],
-            "properties": {
-              "action": { "const": "START_AUCTION" },
-              "args_schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["type", "additionalProperties", "required", "properties"],
-                "properties": {
-                  "type": { "const": "object" },
-                  "additionalProperties": { "const": false },
-                  "required": {
-                    "type": "array",
-                    "minItems": 1,
-                    "maxItems": 1,
-                    "items": { "const": "space_index" }
-                  },
-                  "properties": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["space_index"],
-                    "properties": {
-                      "space_index": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": ["type", "minimum", "maximum"],
-                        "properties": {
-                          "type": { "const": "integer" },
-                          "minimum": { "const": 0 },
-                          "maximum": { "const": 39 }
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "ui_hints": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "highlight_space_indices": {
-                    "type": "array",
-                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
-                  }
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["action", "args_schema"],
-            "properties": {
-              "action": { "const": "PAY_BAIL" },
+              "action": { "const": "buy_property" },
               "args_schema": {
                 "type": "object",
                 "additionalProperties": false,
@@ -247,7 +97,7 @@
             "additionalProperties": false,
             "required": ["action", "args_schema"],
             "properties": {
-              "action": { "const": "USE_JAIL_CARD" },
+              "action": { "const": "start_auction" },
               "args_schema": {
                 "type": "object",
                 "additionalProperties": false,
@@ -274,7 +124,61 @@
             "additionalProperties": false,
             "required": ["action", "args_schema"],
             "properties": {
-              "action": { "const": "ROLL_FOR_DOUBLES" },
+              "action": { "const": "pay_jail_fine" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "use_get_out_of_jail_card" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "roll_for_doubles" },
               "args_schema": {
                 "type": "object",
                 "additionalProperties": false,

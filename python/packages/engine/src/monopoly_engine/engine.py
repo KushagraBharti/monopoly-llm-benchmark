@@ -18,6 +18,8 @@ DecisionPoint = dict[str, Any]
 Event = dict[str, Any]
 StepResult = tuple[GameState, list[Event], DecisionPoint | None, dict[str, Any] | None]
 
+JAIL_FINE = 50
+
 
 class Engine:
     def __init__(
@@ -42,6 +44,10 @@ class Engine:
         self._pending_decision: DecisionPoint | None = None
         self._pending_turn: dict[str, Any] | None = None
         self.state = create_initial_state(run_id, seed, players)
+        self._jail_index = next(
+            (space.index for space in self.state.board if space.kind == "JAIL"),
+            10,
+        )
 
     def request_stop(self, reason: str = "STOPPED") -> None:
         self._stop_reason = reason
@@ -156,31 +162,149 @@ class Engine:
             )
 
         action_name = action["action"]
-        space_index = action.get("args", {}).get("space_index")
         player = self._find_player(player_id)
         if player is None:
             raise ValueError(f"Unknown player for decision: {player_id}")
 
-        if action_name == "BUY_PROPERTY":
-            if space_index is None:
-                raise ValueError("Missing space_index for BUY_PROPERTY.")
-            space = self.state.board[space_index]
-            self._apply_property_purchase(player, space, events)
-        elif action_name in {"START_AUCTION", "DECLINE_PROPERTY"}:
-            pass
-        else:
-            raise ValueError(f"Unsupported action: {action_name}")
-
+        decision_type = decision.get("decision_type")
         self._pending_decision = None
         self._pending_turn = None
 
-        rolled_double = bool(pending_turn.get("rolled_double", False))
-        self._end_turn(events, player, allow_extra_turn=rolled_double and not player.bankrupt)
-        snapshot = self.get_snapshot()
-        if self._should_end_game():
-            self._finish_game(events)
+        if decision_type == "BUY_OR_AUCTION_DECISION":
+            space_index = int(pending_turn.get("space_index", 0))
+            if action_name == "buy_property":
+                space = self.state.board[space_index]
+                self._apply_property_purchase(player, space, events)
+            elif action_name == "start_auction":
+                pass
+            else:
+                raise ValueError(f"Unsupported action: {action_name}")
+
+            rolled_double = bool(pending_turn.get("rolled_double", False))
+            self._end_turn(
+                events,
+                player,
+                allow_extra_turn=rolled_double and not player.bankrupt and not player.in_jail,
+            )
             snapshot = self.get_snapshot()
-        return self.state, events, None, snapshot
+            if self._should_end_game():
+                self._finish_game(events)
+                snapshot = self.get_snapshot()
+            return self.state, events, None, snapshot
+
+        if decision_type == "JAIL_DECISION":
+            if action_name == "pay_jail_fine":
+                self._apply_cash_delta(
+                    player,
+                    -JAIL_FINE,
+                    "JAIL_FINE",
+                    events,
+                    turn_index=self.state.turn_index,
+                )
+                player.in_jail = False
+                player.jail_turns = 0
+                decision = self._roll_and_move(player, events, turn_index=self.state.turn_index)
+                snapshot = self.get_snapshot()
+                if decision is not None:
+                    return self.state, events, decision, snapshot
+                if self._should_end_game():
+                    self._finish_game(events)
+                    snapshot = self.get_snapshot()
+                return self.state, events, None, snapshot
+
+            if action_name == "use_get_out_of_jail_card":
+                if player.get_out_of_jail_cards <= 0:
+                    raise ValueError("No get out of jail cards available.")
+                player.get_out_of_jail_cards -= 1
+                player.in_jail = False
+                player.jail_turns = 0
+                decision = self._roll_and_move(player, events, turn_index=self.state.turn_index)
+                snapshot = self.get_snapshot()
+                if decision is not None:
+                    return self.state, events, decision, snapshot
+                if self._should_end_game():
+                    self._finish_game(events)
+                    snapshot = self.get_snapshot()
+                return self.state, events, None, snapshot
+
+            if action_name == "roll_for_doubles":
+                d1, d2 = self._rng.roll_dice()
+                is_double = d1 == d2
+                self.state.phase = "RESOLVING_MOVE"
+                events.append(
+                    self._build_event(
+                        "DICE_ROLLED",
+                        self._actor_player(player.player_id),
+                        {"d1": d1, "d2": d2, "is_double": is_double},
+                        turn_index=self.state.turn_index,
+                    )
+                )
+                if not is_double:
+                    player.jail_turns += 1
+                    self._end_turn(events, player, allow_extra_turn=False)
+                    snapshot = self.get_snapshot()
+                    if self._should_end_game():
+                        self._finish_game(events)
+                        snapshot = self.get_snapshot()
+                    return self.state, events, None, snapshot
+
+                player.in_jail = False
+                player.jail_turns = 0
+                player.doubles_count += 1
+                if player.doubles_count >= 3:
+                    self._send_player_to_jail(
+                        player,
+                        events,
+                        reason="THREE_DOUBLES",
+                        turn_index=self.state.turn_index,
+                    )
+                    self._end_turn(events, player, allow_extra_turn=False)
+                    snapshot = self.get_snapshot()
+                    if self._should_end_game():
+                        self._finish_game(events)
+                        snapshot = self.get_snapshot()
+                    return self.state, events, None, snapshot
+                decision, landed_index = self._move_player(
+                    player,
+                    d1 + d2,
+                    events,
+                    turn_index=self.state.turn_index,
+                )
+                snapshot = self.get_snapshot()
+                if decision is not None:
+                    self.state.phase = "AWAITING_DECISION"
+                    self._pending_decision = decision
+                    self._pending_turn = {
+                        "rolled_double": is_double,
+                        "space_index": landed_index,
+                        "player_id": player.player_id,
+                    }
+                    events.append(
+                        self._build_event(
+                            "LLM_DECISION_REQUESTED",
+                            self._actor_engine(),
+                            {
+                                "decision_id": decision["decision_id"],
+                                "player_id": player.player_id,
+                                "decision_type": decision["decision_type"],
+                            },
+                            turn_index=self.state.turn_index,
+                        )
+                    )
+                    return self.state, events, decision, snapshot
+                self._end_turn(
+                    events,
+                    player,
+                    allow_extra_turn=is_double and not player.bankrupt and not player.in_jail,
+                )
+                if self._should_end_game():
+                    self._finish_game(events)
+                    snapshot = self.get_snapshot()
+                return self.state, events, None, snapshot
+
+            raise ValueError(f"Unsupported action: {action_name}")
+
+        raise ValueError(f"Unsupported decision type: {decision_type}")
 
     def build_summary(self) -> dict[str, Any]:
         winner_id = self._determine_winner()
@@ -205,6 +329,31 @@ class Engine:
         self.state.active_player_id = current_id
         events.append(self._build_event("TURN_STARTED", self._actor_engine(), {}, turn_index=turn_index))
 
+        if current_player.in_jail:
+            if current_player.jail_turns >= 3 and current_player.cash < JAIL_FINE:
+                self._handle_bankruptcy(current_player, None, events, turn_index=turn_index)
+                current_player.in_jail = False
+                current_player.jail_turns = 0
+                self._end_turn(events, current_player, allow_extra_turn=False)
+                return events, None
+            decision = self._build_jail_decision(current_player)
+            self.state.phase = "AWAITING_DECISION"
+            self._pending_decision = decision
+            self._pending_turn = {"player_id": current_id, "decision_type": "JAIL_DECISION"}
+            events.append(
+                self._build_event(
+                    "LLM_DECISION_REQUESTED",
+                    self._actor_engine(),
+                    {
+                        "decision_id": decision["decision_id"],
+                        "player_id": current_id,
+                        "decision_type": decision["decision_type"],
+                    },
+                    turn_index=turn_index,
+                )
+            )
+            return events, decision
+
         d1, d2 = self._rng.roll_dice()
         is_double = d1 == d2
         if is_double:
@@ -223,43 +372,22 @@ class Engine:
         )
 
         if is_double and current_player.doubles_count >= 3:
-            current_player.doubles_count = 0
-            events.append(
-                self._build_event(
-                    "SENT_TO_JAIL",
-                    self._actor_player(current_id),
-                    {"player_id": current_id, "reason": "THREE_DOUBLES_PENDING"},
-                    turn_index=turn_index,
-                )
+            self._send_player_to_jail(
+                current_player,
+                events,
+                reason="THREE_DOUBLES",
+                turn_index=turn_index,
             )
             self._end_turn(events, current_player, allow_extra_turn=False)
             return events, None
 
-        from_pos = current_player.position
-        board_size = len(self.state.board)
-        to_pos = (from_pos + d1 + d2) % board_size
-        passed_go = to_pos < from_pos
-        current_player.position = to_pos
-        events.append(
-            self._build_event(
-                "PLAYER_MOVED",
-                self._actor_player(current_id),
-                {"from": from_pos, "to": to_pos, "passed_go": passed_go},
-                turn_index=turn_index,
-            )
-        )
-
-        if passed_go:
-            self._apply_cash_delta(current_player, 200, "PASS_GO", events, turn_index=turn_index)
-
-        space = self.state.board[to_pos]
-        decision = self._resolve_landing(current_player, space, d1 + d2, events, turn_index=turn_index)
+        decision, landed_index = self._move_player(current_player, d1 + d2, events, turn_index=turn_index)
         if decision is not None:
             self.state.phase = "AWAITING_DECISION"
             self._pending_decision = decision
             self._pending_turn = {
                 "rolled_double": is_double,
-                "space_index": space.index,
+                "space_index": landed_index,
                 "player_id": current_id,
             }
             events.append(
@@ -276,8 +404,141 @@ class Engine:
             )
             return events, decision
 
-        self._end_turn(events, current_player, allow_extra_turn=is_double and not current_player.bankrupt)
+        self._end_turn(
+            events,
+            current_player,
+            allow_extra_turn=is_double and not current_player.bankrupt and not current_player.in_jail,
+        )
         return events, None
+
+    def _move_player(
+        self,
+        player: PlayerState,
+        steps: int,
+        events: list[Event],
+        *,
+        turn_index: int,
+    ) -> tuple[DecisionPoint | None, int]:
+        from_pos = player.position
+        board_size = len(self.state.board)
+        to_pos = (from_pos + steps) % board_size
+        passed_go = to_pos < from_pos
+        player.position = to_pos
+        events.append(
+            self._build_event(
+                "PLAYER_MOVED",
+                self._actor_player(player.player_id),
+                {"from": from_pos, "to": to_pos, "passed_go": passed_go},
+                turn_index=turn_index,
+            )
+        )
+        if passed_go:
+            self._apply_cash_delta(player, 200, "PASS_GO", events, turn_index=turn_index)
+        space = self.state.board[to_pos]
+        decision = self._resolve_landing(player, space, steps, events, turn_index=turn_index)
+        return decision, to_pos
+
+    def _send_player_to_jail(
+        self,
+        player: PlayerState,
+        events: list[Event],
+        *,
+        reason: str,
+        turn_index: int,
+    ) -> None:
+        from_pos = player.position
+        player.position = self._jail_index
+        player.in_jail = True
+        player.jail_turns = 0
+        player.doubles_count = 0
+        if from_pos != self._jail_index:
+            events.append(
+                self._build_event(
+                    "PLAYER_MOVED",
+                    self._actor_player(player.player_id),
+                    {"from": from_pos, "to": self._jail_index, "passed_go": False},
+                    turn_index=turn_index,
+                )
+            )
+        events.append(
+            self._build_event(
+                "SENT_TO_JAIL",
+                self._actor_player(player.player_id),
+                {"player_id": player.player_id, "reason": reason},
+                turn_index=turn_index,
+            )
+        )
+
+    def _roll_and_move(
+        self,
+        player: PlayerState,
+        events: list[Event],
+        *,
+        turn_index: int,
+    ) -> DecisionPoint | None:
+        d1, d2 = self._rng.roll_dice()
+        return self._move_after_roll(player, d1, d2, events, turn_index=turn_index)
+
+    def _move_after_roll(
+        self,
+        player: PlayerState,
+        d1: int,
+        d2: int,
+        events: list[Event],
+        *,
+        turn_index: int,
+    ) -> DecisionPoint | None:
+        is_double = d1 == d2
+        if is_double:
+            player.doubles_count += 1
+        else:
+            player.doubles_count = 0
+        self.state.phase = "RESOLVING_MOVE"
+        events.append(
+            self._build_event(
+                "DICE_ROLLED",
+                self._actor_player(player.player_id),
+                {"d1": d1, "d2": d2, "is_double": is_double},
+                turn_index=turn_index,
+            )
+        )
+        if is_double and player.doubles_count >= 3:
+            self._send_player_to_jail(
+                player,
+                events,
+                reason="THREE_DOUBLES",
+                turn_index=turn_index,
+            )
+            self._end_turn(events, player, allow_extra_turn=False)
+            return None
+        decision, landed_index = self._move_player(player, d1 + d2, events, turn_index=turn_index)
+        if decision is not None:
+            self.state.phase = "AWAITING_DECISION"
+            self._pending_decision = decision
+            self._pending_turn = {
+                "rolled_double": is_double,
+                "space_index": landed_index,
+                "player_id": player.player_id,
+            }
+            events.append(
+                self._build_event(
+                    "LLM_DECISION_REQUESTED",
+                    self._actor_engine(),
+                    {
+                        "decision_id": decision["decision_id"],
+                        "player_id": player.player_id,
+                        "decision_type": decision["decision_type"],
+                    },
+                    turn_index=turn_index,
+                )
+            )
+            return decision
+        self._end_turn(
+            events,
+            player,
+            allow_extra_turn=is_double and not player.bankrupt and not player.in_jail,
+        )
+        return None
 
     def _resolve_landing(
         self,
@@ -291,7 +552,7 @@ class Engine:
         if space.kind in OWNABLE_KINDS:
             if space.owner_id is None:
                 self.state.phase = "AWAITING_DECISION"
-                return self._build_buy_decision(player, space)
+                return self._build_buy_or_auction_decision(player, space)
             if space.owner_id == player.player_id:
                 return None
             owner = self._find_player(space.owner_id)
@@ -308,30 +569,52 @@ class Engine:
                 self._pay_tax(player, amount, reason, events, turn_index=turn_index)
             return None
         if space.kind == "GO_TO_JAIL":
-            events.append(
-                self._build_event(
-                    "SENT_TO_JAIL",
-                    self._actor_player(player.player_id),
-                    {"player_id": player.player_id, "reason": "GO_TO_JAIL_PENDING"},
-                    turn_index=turn_index,
-                )
+            self._send_player_to_jail(
+                player,
+                events,
+                reason="GO_TO_JAIL",
+                turn_index=turn_index,
             )
         return None
 
-    def _build_buy_decision(self, player: PlayerState, space: SpaceState) -> DecisionPoint:
+    def _build_buy_or_auction_decision(self, player: PlayerState, space: SpaceState) -> DecisionPoint:
         decision_id = f"{self.run_id}-dec-{self._decision_seq:06d}"
         self._decision_seq += 1
         legal_actions: list[dict[str, Any]] = []
         if space.price is not None and player.cash >= space.price:
-            legal_actions.append(self._build_space_action("BUY_PROPERTY", space.index, highlight=[space.index]))
-        legal_actions.append(self._build_space_action("START_AUCTION", space.index))
+            legal_actions.append(self._build_space_action("buy_property", highlight=[space.index]))
+        legal_actions.append(self._build_space_action("start_auction"))
         return {
             "schema_version": "v1",
             "run_id": self.run_id,
             "decision_id": decision_id,
             "turn_index": self.state.turn_index,
             "player_id": player.player_id,
-            "decision_type": "BUY_DECISION",
+            "decision_type": "BUY_OR_AUCTION_DECISION",
+            "state": self.get_snapshot(),
+            "legal_actions": legal_actions,
+        }
+
+    def _build_jail_decision(self, player: PlayerState) -> DecisionPoint:
+        decision_id = f"{self.run_id}-dec-{self._decision_seq:06d}"
+        self._decision_seq += 1
+        legal_actions: list[dict[str, Any]] = []
+        if player.jail_turns >= 3:
+            if player.cash >= JAIL_FINE:
+                legal_actions.append(self._build_space_action("pay_jail_fine"))
+        else:
+            if player.cash >= JAIL_FINE:
+                legal_actions.append(self._build_space_action("pay_jail_fine"))
+            legal_actions.append(self._build_space_action("roll_for_doubles"))
+            if player.get_out_of_jail_cards > 0:
+                legal_actions.append(self._build_space_action("use_get_out_of_jail_card"))
+        return {
+            "schema_version": "v1",
+            "run_id": self.run_id,
+            "decision_id": decision_id,
+            "turn_index": self.state.turn_index,
+            "player_id": player.player_id,
+            "decision_type": "JAIL_DECISION",
             "state": self.get_snapshot(),
             "legal_actions": legal_actions,
         }
@@ -339,7 +622,6 @@ class Engine:
     def _build_space_action(
         self,
         action_name: str,
-        space_index: int,
         *,
         highlight: list[int] | None = None,
     ) -> dict[str, Any]:
@@ -348,10 +630,6 @@ class Engine:
             "args_schema": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["space_index"],
-                "properties": {
-                    "space_index": {"type": "integer", "minimum": 0, "maximum": 39},
-                },
             },
         }
         if highlight:
@@ -509,7 +787,7 @@ class Engine:
             self._build_event(
                 "CASH_CHANGED",
                 self._actor_player(player.player_id),
-                {"player_id": player.player_id, "delta": -price, "reason": "BUY_PROPERTY"},
+                {"player_id": player.player_id, "delta": -price, "reason": "buy_property"},
                 turn_index=self.state.turn_index,
             )
         )
@@ -614,12 +892,10 @@ class Engine:
         allowed = {entry["action"] for entry in decision.get("legal_actions", [])}
         if action.get("action") not in allowed:
             return "Action not legal for decision"
-        if action.get("action") in {"BUY_PROPERTY", "START_AUCTION", "DECLINE_PROPERTY"}:
-            space_index = action.get("args", {}).get("space_index")
+        if action.get("action") in {"buy_property", "start_auction"}:
+            space_index = self._pending_turn.get("space_index")
             if space_index is None:
-                return "Missing space_index"
-            if space_index != self._pending_turn.get("space_index"):
-                return "space_index mismatch"
+                return "Missing pending space_index"
         return None
 
     def _build_event(

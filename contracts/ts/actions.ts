@@ -2,12 +2,11 @@ import type { SchemaVersion } from "./state";
 
 export type ActionName =
   | "ROLL_DICE"
-  | "BUY_PROPERTY"
-  | "DECLINE_PROPERTY"
-  | "START_AUCTION"
-  | "PAY_BAIL"
-  | "USE_JAIL_CARD"
-  | "ROLL_FOR_DOUBLES"
+  | "buy_property"
+  | "start_auction"
+  | "pay_jail_fine"
+  | "use_get_out_of_jail_card"
+  | "roll_for_doubles"
   | "END_TURN"
   | "NOOP";
 
@@ -28,32 +27,27 @@ export interface RollDiceAction extends BaseAction {
 }
 
 export interface BuyPropertyAction extends BaseAction {
-  action: "BUY_PROPERTY";
-  args: { space_index: number };
-}
-
-export interface DeclinePropertyAction extends BaseAction {
-  action: "DECLINE_PROPERTY";
-  args: { space_index: number };
+  action: "buy_property";
+  args: EmptyArgs;
 }
 
 export interface StartAuctionAction extends BaseAction {
-  action: "START_AUCTION";
-  args: { space_index: number };
+  action: "start_auction";
+  args: EmptyArgs;
 }
 
 export interface PayBailAction extends BaseAction {
-  action: "PAY_BAIL";
+  action: "pay_jail_fine";
   args: EmptyArgs;
 }
 
 export interface UseJailCardAction extends BaseAction {
-  action: "USE_JAIL_CARD";
+  action: "use_get_out_of_jail_card";
   args: EmptyArgs;
 }
 
 export interface RollForDoublesAction extends BaseAction {
-  action: "ROLL_FOR_DOUBLES";
+  action: "roll_for_doubles";
   args: EmptyArgs;
 }
 
@@ -70,7 +64,6 @@ export interface NoopAction extends BaseAction {
 export type Action =
   | RollDiceAction
   | BuyPropertyAction
-  | DeclinePropertyAction
   | StartAuctionAction
   | PayBailAction
   | UseJailCardAction

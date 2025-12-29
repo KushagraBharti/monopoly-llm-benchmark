@@ -3,8 +3,8 @@ import type { SchemaVersion, StateSnapshot } from "./state";
 export type DecisionType =
   | "PRE_ROLL"
   | "POST_LAND"
-  | "JAIL_CHOICE"
-  | "BUY_DECISION"
+  | "JAIL_DECISION"
+  | "BUY_OR_AUCTION_DECISION"
   | "AUCTION_BID"
   | "END_TURN"
   | "TRADE_RESPONSE";
@@ -52,32 +52,27 @@ export interface RollDiceLegalAction extends BaseLegalAction {
 }
 
 export interface BuyPropertyLegalAction extends BaseLegalAction {
-  action: "BUY_PROPERTY";
-  args_schema: SpaceIndexArgsSchema;
-}
-
-export interface DeclinePropertyLegalAction extends BaseLegalAction {
-  action: "DECLINE_PROPERTY";
-  args_schema: SpaceIndexArgsSchema;
+  action: "buy_property";
+  args_schema: EmptyArgsSchema;
 }
 
 export interface StartAuctionLegalAction extends BaseLegalAction {
-  action: "START_AUCTION";
-  args_schema: SpaceIndexArgsSchema;
+  action: "start_auction";
+  args_schema: EmptyArgsSchema;
 }
 
-export interface PayBailLegalAction extends BaseLegalAction {
-  action: "PAY_BAIL";
+export interface PayJailFineLegalAction extends BaseLegalAction {
+  action: "pay_jail_fine";
   args_schema: EmptyArgsSchema;
 }
 
 export interface UseJailCardLegalAction extends BaseLegalAction {
-  action: "USE_JAIL_CARD";
+  action: "use_get_out_of_jail_card";
   args_schema: EmptyArgsSchema;
 }
 
 export interface RollForDoublesLegalAction extends BaseLegalAction {
-  action: "ROLL_FOR_DOUBLES";
+  action: "roll_for_doubles";
   args_schema: EmptyArgsSchema;
 }
 
@@ -94,9 +89,8 @@ export interface NoopLegalAction extends BaseLegalAction {
 export type LegalAction =
   | RollDiceLegalAction
   | BuyPropertyLegalAction
-  | DeclinePropertyLegalAction
   | StartAuctionLegalAction
-  | PayBailLegalAction
+  | PayJailFineLegalAction
   | UseJailCardLegalAction
   | RollForDoublesLegalAction
   | EndTurnLegalAction

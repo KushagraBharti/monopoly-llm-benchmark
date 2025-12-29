@@ -154,7 +154,7 @@ class LlmRunner:
         while True:
             await self._await_resume()
             _, events, decision, _ = self._engine.advance_until_decision(max_steps=1)
-            if not events:
+            if not events and decision is None:
                 break
             for event in events:
                 await self._await_resume()
@@ -663,26 +663,17 @@ class LlmRunner:
     @staticmethod
     def _fallback_action(decision: dict[str, Any]) -> dict[str, Any]:
         legal_actions = [entry["action"] for entry in decision.get("legal_actions", [])]
-        if "BUY_PROPERTY" in legal_actions:
-            action_name = "BUY_PROPERTY"
-        elif "START_AUCTION" in legal_actions:
-            action_name = "START_AUCTION"
+        if "buy_property" in legal_actions:
+            action_name = "buy_property"
+        elif "start_auction" in legal_actions:
+            action_name = "start_auction"
         elif legal_actions:
             action_name = legal_actions[0]
         else:
             action_name = "NOOP"
 
         args: dict[str, Any] = {}
-        if action_name in {"BUY_PROPERTY", "START_AUCTION", "DECLINE_PROPERTY"}:
-            state = decision.get("state", {})
-            active_player_id = state.get("active_player_id")
-            space_index = 0
-            for player in state.get("players", []):
-                if player.get("player_id") == active_player_id:
-                    space_index = int(player.get("position", 0))
-                    break
-            args = {"space_index": space_index}
-        elif action_name == "NOOP":
+        if action_name == "NOOP":
             args = {"reason": "fallback"}
 
         return {
@@ -812,20 +803,5 @@ def validate_decision_action(decision: dict[str, Any], action: dict[str, Any]) -
     allowed = {entry.get("action") for entry in legal_actions}
     if action.get("action") not in allowed:
         errors.append("Action not in legal_actions")
-
-    if decision.get("decision_type") == "BUY_DECISION":
-        state = decision.get("state", {})
-        active_player_id = state.get("active_player_id")
-        active_player = next(
-            (player for player in state.get("players", []) if player.get("player_id") == active_player_id),
-            None,
-        )
-        if active_player is None:
-            errors.append("Missing active player in state snapshot")
-        else:
-            expected_index = int(active_player.get("position", 0))
-            actual_index = action.get("args", {}).get("space_index")
-            if actual_index != expected_index:
-                errors.append("space_index does not match current player position")
 
     return errors

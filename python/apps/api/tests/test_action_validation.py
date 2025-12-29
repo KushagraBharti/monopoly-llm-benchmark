@@ -5,7 +5,7 @@ def test_action_validation_rejects_string_space_index() -> None:
     action = {
         "schema_version": "v1",
         "decision_id": "dec-1",
-        "action": "BUY_PROPERTY",
+        "action": "buy_property",
         "args": {"space_index": "5"},
     }
     ok, errors = validate_action_payload(action)
@@ -17,8 +17,8 @@ def test_action_validation_rejects_null_public_message() -> None:
     action = {
         "schema_version": "v1",
         "decision_id": "dec-2",
-        "action": "START_AUCTION",
-        "args": {"space_index": 5},
+        "action": "start_auction",
+        "args": {},
         "public_message": None,
     }
     ok, errors = validate_action_payload(action)
@@ -30,8 +30,8 @@ def test_action_validation_rejects_additional_properties() -> None:
     action = {
         "schema_version": "v1",
         "decision_id": "dec-4",
-        "action": "BUY_PROPERTY",
-        "args": {"space_index": 5},
+        "action": "buy_property",
+        "args": {},
         "extra": "nope",
     }
     ok, errors = validate_action_payload(action)
@@ -55,8 +55,8 @@ def test_action_validation_accepts_valid_action() -> None:
     action = {
         "schema_version": "v1",
         "decision_id": "dec-3",
-        "action": "START_AUCTION",
-        "args": {"space_index": 5},
+        "action": "start_auction",
+        "args": {},
     }
     ok, errors = validate_action_payload(action)
     assert ok is True

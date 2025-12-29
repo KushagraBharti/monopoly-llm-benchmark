@@ -24,67 +24,7 @@
       "properties": {
         "schema_version": { "type": "string", "const": "v1" },
         "decision_id": { "type": "string" },
-        "action": { "const": "BUY_PROPERTY" },
-        "args": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["space_index"],
-          "properties": {
-            "space_index": { "type": "integer", "minimum": 0, "maximum": 39 }
-          }
-        },
-        "public_message": { "type": "string" },
-        "private_thought": { "type": "string" }
-      }
-    },
-    {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["schema_version", "decision_id", "action", "args"],
-      "properties": {
-        "schema_version": { "type": "string", "const": "v1" },
-        "decision_id": { "type": "string" },
-        "action": { "const": "DECLINE_PROPERTY" },
-        "args": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["space_index"],
-          "properties": {
-            "space_index": { "type": "integer", "minimum": 0, "maximum": 39 }
-          }
-        },
-        "public_message": { "type": "string" },
-        "private_thought": { "type": "string" }
-      }
-    },
-    {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["schema_version", "decision_id", "action", "args"],
-      "properties": {
-        "schema_version": { "type": "string", "const": "v1" },
-        "decision_id": { "type": "string" },
-        "action": { "const": "START_AUCTION" },
-        "args": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["space_index"],
-          "properties": {
-            "space_index": { "type": "integer", "minimum": 0, "maximum": 39 }
-          }
-        },
-        "public_message": { "type": "string" },
-        "private_thought": { "type": "string" }
-      }
-    },
-    {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["schema_version", "decision_id", "action", "args"],
-      "properties": {
-        "schema_version": { "type": "string", "const": "v1" },
-        "decision_id": { "type": "string" },
-        "action": { "const": "PAY_BAIL" },
+        "action": { "const": "buy_property" },
         "args": { "type": "object", "additionalProperties": false },
         "public_message": { "type": "string" },
         "private_thought": { "type": "string" }
@@ -97,7 +37,7 @@
       "properties": {
         "schema_version": { "type": "string", "const": "v1" },
         "decision_id": { "type": "string" },
-        "action": { "const": "USE_JAIL_CARD" },
+        "action": { "const": "start_auction" },
         "args": { "type": "object", "additionalProperties": false },
         "public_message": { "type": "string" },
         "private_thought": { "type": "string" }
@@ -110,7 +50,33 @@
       "properties": {
         "schema_version": { "type": "string", "const": "v1" },
         "decision_id": { "type": "string" },
-        "action": { "const": "ROLL_FOR_DOUBLES" },
+        "action": { "const": "pay_jail_fine" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "use_get_out_of_jail_card" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "roll_for_doubles" },
         "args": { "type": "object", "additionalProperties": false },
         "public_message": { "type": "string" },
         "private_thought": { "type": "string" }

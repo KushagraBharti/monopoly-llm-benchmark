@@ -32,14 +32,14 @@ def test_mock_determinism() -> None:
         {"type": "PLAYER_MOVED", "payload": {"from": 0, "to": 5, "passed_go": False}},
         {
             "type": "LLM_DECISION_REQUESTED",
-            "payload": {"player_id": "p2", "decision_type": "BUY_DECISION"},
+            "payload": {"player_id": "p2", "decision_type": "BUY_OR_AUCTION_DECISION"},
         },
         {
             "type": "LLM_DECISION_RESPONSE",
-            "payload": {"player_id": "p2", "action_name": "BUY_PROPERTY", "valid": True, "error": None},
+            "payload": {"player_id": "p2", "action_name": "buy_property", "valid": True, "error": None},
         },
         {"type": "PROPERTY_PURCHASED", "payload": {"player_id": "p2", "space_index": 5, "price": 200}},
-        {"type": "CASH_CHANGED", "payload": {"player_id": "p2", "delta": -200, "reason": "BUY_PROPERTY"}},
+        {"type": "CASH_CHANGED", "payload": {"player_id": "p2", "delta": -200, "reason": "buy_property"}},
         {"type": "TURN_ENDED", "payload": {}},
     ]
     assert stripped == expected

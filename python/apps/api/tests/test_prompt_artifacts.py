@@ -77,11 +77,10 @@ def _tool_call_response(name: str, args: dict[str, Any]) -> OpenRouterResult:
 
 def _choose_buy_if_legal(decision: dict[str, Any], focus: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     legal = {entry.get("action") for entry in decision.get("legal_actions", [])}
-    space_index = focus.get("landed_space", {}).get("space_index", 0)
-    if "BUY_PROPERTY" in legal:
-        return "BUY_PROPERTY", {"space_index": int(space_index)}
-    if "START_AUCTION" in legal:
-        return "START_AUCTION", {"space_index": int(space_index)}
+    if "buy_property" in legal:
+        return "buy_property", {}
+    if "start_auction" in legal:
+        return "start_auction", {}
     return next(iter(legal)), {}
 
 
@@ -97,7 +96,7 @@ class ScriptedOpenRouter:
     async def create_chat_completion(self, *, messages: list[dict[str, Any]], **_: Any) -> OpenRouterResult:
         payload = _extract_payload(messages)
         if payload is None:
-            return _tool_call_response("START_AUCTION", {"space_index": 0})
+            return _tool_call_response("start_auction", {})
         decision = payload["decision"]
         focus = payload["decision_focus"]
         decision_id = decision["decision_id"]
@@ -116,10 +115,10 @@ def _policy(decision_number: int, attempt: int, decision: dict[str, Any], focus:
         return _choose_buy_if_legal(decision, focus)
     if decision_number == 1:
         if attempt == 0:
-            return "BUY_PROPERTY", {}
+            return "buy_property", {"space_index": 0}
         return _choose_buy_if_legal(decision, focus)
     if decision_number == 2:
-        return "BUY_PROPERTY", {}
+        return "buy_property", {"space_index": 0}
     return _choose_buy_if_legal(decision, focus)
 
 

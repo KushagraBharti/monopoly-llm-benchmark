@@ -9,6 +9,7 @@ from typing import Any
 
 from monopoly_engine.board import (
     BOARD_SPEC,
+    GROUP_INDEXES,
     PROPERTY_RENT_TABLES,
     RAILROAD_RENTS,
     UTILITY_RENT_MULTIPLIER,
@@ -18,6 +19,18 @@ from .player_config import DEFAULT_SYSTEM_PROMPT, PlayerConfig
 
 
 PROMPT_SCHEMA_VERSION = "v1"
+JAIL_FINE = 50
+
+HOUSE_COST_BY_GROUP = {
+    "BROWN": 50,
+    "LIGHT_BLUE": 50,
+    "PINK": 100,
+    "ORANGE": 100,
+    "RED": 150,
+    "YELLOW": 150,
+    "GREEN": 200,
+    "DARK_BLUE": 200,
+}
 
 
 def normalize_space_key(name: str) -> str:
@@ -290,13 +303,12 @@ def build_openrouter_tools(decision_payload: dict[str, Any]) -> list[dict[str, A
 
 def _describe_action(action_name: str) -> str:
     descriptions = {
-        "BUY_PROPERTY": "Buy the property at the current space.",
-        "START_AUCTION": "Decline purchase and start an auction for the current space.",
-        "DECLINE_PROPERTY": "Decline the purchase at the current space.",
+        "buy_property": "Buy the property at the current space.",
+        "start_auction": "Decline purchase and start an auction for the current space.",
         "ROLL_DICE": "Roll the dice to start your move.",
-        "ROLL_FOR_DOUBLES": "Roll for doubles to attempt to leave jail.",
-        "PAY_BAIL": "Pay bail to leave jail.",
-        "USE_JAIL_CARD": "Use a Get Out of Jail Free card.",
+        "roll_for_doubles": "Roll for doubles to attempt to leave jail.",
+        "pay_jail_fine": "Pay the jail fine to leave jail.",
+        "use_get_out_of_jail_card": "Use a Get Out of Jail Free card.",
         "END_TURN": "End your turn.",
         "NOOP": "Take no action.",
     }
@@ -309,10 +321,10 @@ def build_decision_focus(
     space_key_by_index: dict[int, str],
 ) -> dict[str, Any]:
     decision_type = decision.get("decision_type")
-    if decision_type == "BUY_DECISION":
-        return build_buy_decision_focus(decision, space_key_by_index=space_key_by_index)
+    if decision_type == "BUY_OR_AUCTION_DECISION":
+        return build_buy_or_auction_decision_focus(decision, space_key_by_index=space_key_by_index)
     # TODO: expand focus payloads when engine emits richer decision contexts.
-    if decision_type == "JAIL_CHOICE":
+    if decision_type == "JAIL_DECISION":
         return build_jail_decision_focus(decision, space_key_by_index=space_key_by_index)
     if decision_type == "AUCTION_BID":
         return build_auction_bid_focus(decision, space_key_by_index=space_key_by_index)
@@ -333,7 +345,46 @@ def build_decision_focus(
     }
 
 
-def build_buy_decision_focus(
+def _build_legal_tools(decision: dict[str, Any], *, include_args: bool) -> list[dict[str, Any]]:
+    tools: list[dict[str, Any]] = []
+    for entry in decision.get("legal_actions", []):
+        tool_name = entry.get("action")
+        if not tool_name:
+            continue
+        tool: dict[str, Any] = {
+            "tool_name": tool_name,
+            "requires": ["public_message", "private_thought"],
+        }
+        if include_args:
+            tool["args"] = {}
+        tools.append(tool)
+    return tools
+
+
+def _rent_summary(space_kind: str | None, space_index: int) -> list[int]:
+    if space_kind == "PROPERTY":
+        return PROPERTY_RENT_TABLES.get(space_index, [])
+    if space_kind == "RAILROAD":
+        return list(RAILROAD_RENTS)
+    if space_kind == "UTILITY":
+        return [UTILITY_RENT_MULTIPLIER[key] for key in sorted(UTILITY_RENT_MULTIPLIER)]
+    return []
+
+
+def _group_progress(board: list[dict[str, Any]], player_id: str | None, group: str | None) -> dict[str, int]:
+    if not group or not player_id:
+        return {"you_own_in_group": 0, "total_in_group": 0}
+    indices = GROUP_INDEXES.get(group, [])
+    if not indices:
+        return {"you_own_in_group": 0, "total_in_group": 0}
+    board_by_index = {int(space.get("index", 0)): space for space in board}
+    owned = sum(
+        1 for index in indices if board_by_index.get(index, {}).get("owner_id") == player_id
+    )
+    return {"you_own_in_group": owned, "total_in_group": len(indices)}
+
+
+def build_buy_or_auction_decision_focus(
     decision: dict[str, Any],
     *,
     space_key_by_index: dict[int, str],
@@ -349,48 +400,26 @@ def build_buy_decision_focus(
     landed_space = next((space for space in board if space.get("index") == position_index), None)
     if landed_space is None:
         landed_space = {"index": position_index}
-    price = landed_space.get("price")
-    cash = active_player.get("cash")
-    can_afford = price is not None and cash is not None and cash >= price
+    space_kind = landed_space.get("kind")
+    group = landed_space.get("group")
+    rent = _rent_summary(space_kind, position_index)
+    house_cost = HOUSE_COST_BY_GROUP.get(group, 0) if space_kind == "PROPERTY" else 0
     return {
         "schema_version": PROMPT_SCHEMA_VERSION,
-        "focus_type": "BUY_DECISION_FOCUS",
-        "landed_space": {
-            "space_key": space_key_for_index(position_index, space_key_by_index),
-            "space_index": position_index,
-            "kind": landed_space.get("kind"),
-            "group": landed_space.get("group"),
-            "price": price,
-            "current_rent": _estimate_base_rent(landed_space),
-            "owner_player_id": landed_space.get("owner_id"),
+        "decision_id": decision.get("decision_id"),
+        "decision_type": decision.get("decision_type"),
+        "actor_player_id": active_player_id,
+        "scenario": {
+            "landed_space": space_key_for_index(position_index, space_key_by_index),
+            "space_kind": space_kind,
+            "group": group,
+            "price": landed_space.get("price"),
+            "house_cost": house_cost,
+            "rent": rent,
+            "group_progress": _group_progress(board, active_player_id, group),
         },
-        "your_cash": cash,
-        "can_afford": bool(can_afford),
-        "notes": [
-            "If you buy, you pay the price immediately.",
-            "If you start an auction, ownership is decided later (auction mechanics may be simplified/placeholder).",
-        ],
+        "legal_tools": _build_legal_tools(decision, include_args=True),
     }
-
-
-def _estimate_base_rent(space: dict[str, Any]) -> int:
-    kind = space.get("kind")
-    if kind == "RAILROAD":
-        return RAILROAD_RENTS[0]
-    if kind == "UTILITY":
-        multiplier = UTILITY_RENT_MULTIPLIER.get(1, 4)
-        return 7 * multiplier
-    if kind == "PROPERTY":
-        rent_table = PROPERTY_RENT_TABLES.get(space.get("index"))
-        if not rent_table:
-            return 0
-        if space.get("hotel"):
-            return rent_table[5]
-        houses = int(space.get("houses", 0))
-        if houses > 0:
-            return rent_table[min(houses, 4)]
-        return rent_table[0]
-    return 0
 
 
 def build_jail_decision_focus(
@@ -398,22 +427,22 @@ def build_jail_decision_focus(
     *,
     space_key_by_index: dict[int, str],
 ) -> dict[str, Any]:
-    state = decision.get("state", {})
-    player_id = decision.get("player_id")
-    player = next(
-        (entry for entry in state.get("players", []) if entry.get("player_id") == player_id),
-        {},
-    )
-    position_index = int(player.get("position", 0))
+    tool_names = {entry.get("action") for entry in decision.get("legal_actions", [])}
     return {
         "schema_version": PROMPT_SCHEMA_VERSION,
-        "focus_type": "JAIL_DECISION_FOCUS",
-        "player_id": player_id,
-        "position": space_key_for_index(position_index, space_key_by_index),
-        "in_jail": bool(player.get("in_jail")),
-        "jail_turns": player.get("jail_turns"),
-        "cash": player.get("cash"),
-        "has_get_out_of_jail_card": int(player.get("get_out_of_jail_cards", 0)) > 0,
+        "decision_id": decision.get("decision_id"),
+        "decision_type": decision.get("decision_type"),
+        "actor_player_id": decision.get("player_id"),
+        "scenario": {
+            "jail_fine": JAIL_FINE,
+            "options": {
+                "can_pay_fine": "pay_jail_fine" in tool_names,
+                "can_roll_for_doubles": "roll_for_doubles" in tool_names,
+                "can_use_jail_card": "use_get_out_of_jail_card" in tool_names,
+            },
+            "notes": ["If you roll doubles, you immediately leave jail and move normally."],
+        },
+        "legal_tools": _build_legal_tools(decision, include_args=False),
     }
 
 
@@ -532,10 +561,17 @@ def build_prompt_bundle(
 
 def _with_retry_notes(decision_focus: dict[str, Any], errors: list[str]) -> dict[str, Any]:
     focus = copy.deepcopy(decision_focus)
-    notes = focus.get("notes")
-    if not isinstance(notes, list):
-        notes = []
-        focus["notes"] = notes
+    target = focus.get("scenario")
+    if isinstance(target, dict):
+        notes = target.get("notes")
+        if not isinstance(notes, list):
+            notes = []
+            target["notes"] = notes
+    else:
+        notes = focus.get("notes")
+        if not isinstance(notes, list):
+            notes = []
+            focus["notes"] = notes
     notes.append(f"Previous validation errors: {', '.join(errors)}")
     notes.append("Respond with a valid tool call only. No freeform text.")
     return focus

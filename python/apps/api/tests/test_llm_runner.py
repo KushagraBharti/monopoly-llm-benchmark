@@ -3,6 +3,8 @@ import json
 from typing import Any, Callable
 
 from monopoly_arena import OpenRouterResult
+from monopoly_arena.prompting import PromptMemory, build_prompt_bundle, build_space_key_by_index
+from monopoly_engine import Engine
 from monopoly_telemetry import init_run_files
 
 from monopoly_api.llm_runner import LlmRunner
@@ -96,7 +98,7 @@ class PolicyOpenRouter:
     async def create_chat_completion(self, *, messages: list[dict[str, Any]], **_: Any) -> OpenRouterResult:
         payload = _extract_payload(messages)
         if payload is None:
-            return _tool_call_response("START_AUCTION", {"space_index": 0})
+            return _tool_call_response("start_auction", {})
         tool_name, args = self._policy(payload["decision"], payload["decision_focus"])
         return _tool_call_response(tool_name, args)
 
@@ -118,7 +120,7 @@ class ScriptedOpenRouter:
     async def create_chat_completion(self, *, messages: list[dict[str, Any]], **_: Any) -> OpenRouterResult:
         payload = _extract_payload(messages)
         if payload is None:
-            return _tool_call_response("START_AUCTION", {"space_index": 0})
+            return _tool_call_response("start_auction", {})
         decision = payload["decision"]
         decision_focus = payload["decision_focus"]
         decision_id = decision["decision_id"]
@@ -134,11 +136,11 @@ class ScriptedOpenRouter:
             return _tool_call_response(tool_name, args)
         if decision_number == 1:
             if attempt == 0:
-                return _tool_call_response("BUY_PROPERTY", {})
+                return _tool_call_response("buy_property", {"space_index": 0})
             tool_name, args = _choose_buy_if_legal(decision, decision_focus)
             return _tool_call_response(tool_name, args)
         if decision_number == 2:
-            return _tool_call_response("BUY_PROPERTY", {})
+            return _tool_call_response("buy_property", {"space_index": 0})
         tool_name, args = _choose_buy_if_legal(decision, decision_focus)
         return _tool_call_response(tool_name, args)
 
@@ -151,7 +153,7 @@ class CaptureOpenRouter:
         self.calls.append({"model": model, "messages": messages, "kwargs": kwargs})
         payload = _extract_payload(messages)
         if payload is None:
-            return _tool_call_response("START_AUCTION", {"space_index": 0})
+            return _tool_call_response("start_auction", {})
         tool_name, args = _choose_buy_if_legal(payload["decision"], payload["decision_focus"])
         return _tool_call_response(tool_name, args)
 
@@ -161,11 +163,9 @@ def _choose_buy_if_legal(
     decision_focus: dict[str, Any],
 ) -> tuple[str, dict[str, Any]]:
     legal = {entry.get("action") for entry in decision.get("legal_actions", [])}
-    landed_space = decision_focus.get("landed_space", {})
-    position = int(landed_space.get("space_index", 0))
-    if "BUY_PROPERTY" in legal:
-        return "BUY_PROPERTY", {"space_index": position}
-    return "START_AUCTION", {"space_index": position}
+    if "buy_property" in legal:
+        return "buy_property", {}
+    return "start_auction", {}
 
 
 def test_retry_then_valid_action(tmp_path) -> None:
@@ -176,7 +176,7 @@ def test_retry_then_valid_action(tmp_path) -> None:
     def policy(decision: dict[str, Any], decision_focus: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         call_state["count"] += 1
         if call_state["count"] == 1:
-            return "BUY_PROPERTY", {}
+            return "buy_property", {"space_index": 0}
         return _choose_buy_if_legal(decision, decision_focus)
 
     fake = PolicyOpenRouter(policy)
@@ -224,7 +224,7 @@ def test_invalid_twice_fallback(tmp_path) -> None:
     players = _make_players()
     run_files = init_run_files(tmp_path, "run-fallback")
     def policy(_: dict[str, Any], __: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-        return "BUY_PROPERTY", {}
+        return "buy_property", {"space_index": 0}
 
     fake = PolicyOpenRouter(policy)
     runner = LlmRunner(
@@ -305,9 +305,53 @@ def test_prompt_payload_shape(tmp_path) -> None:
     assert "run_id" not in decision
 
     focus = payload["decision_focus"]
-    assert focus["focus_type"] == "BUY_DECISION_FOCUS"
-    assert "landed_space" in focus
-    assert "can_afford" in focus
+    assert focus["schema_version"] == "v1"
+    assert focus["decision_type"] == "BUY_OR_AUCTION_DECISION"
+    assert "jail_turns" not in json.dumps(focus)
+    scenario = focus["scenario"]
+    assert "landed_space" in scenario
+    tools = focus["legal_tools"]
+    tool_names = {tool["tool_name"] for tool in tools}
+    assert {"buy_property", "start_auction"}.intersection(tool_names)
+    for tool in tools:
+        assert tool["args"] == {}
+
+
+def test_jail_decision_focus_shape() -> None:
+    players_state = [
+        {"player_id": "p1", "name": "P1"},
+        {"player_id": "p2", "name": "P2"},
+        {"player_id": "p3", "name": "P3"},
+        {"player_id": "p4", "name": "P4"},
+    ]
+    engine = Engine(seed=9, players=players_state, run_id="run-jail-shape", max_turns=3, ts_step_ms=1)
+    player = engine.state.players[0]
+    engine.state.active_player_id = "p1"
+    player.in_jail = True
+    player.position = 10
+    player.jail_turns = 0
+
+    _, _, decision, _ = engine.advance_until_decision(max_steps=1)
+    assert decision is not None
+    assert decision["decision_type"] == "JAIL_DECISION"
+
+    space_key_by_index = build_space_key_by_index()
+    prompt = build_prompt_bundle(
+        decision,
+        _make_player("p1", "P1"),
+        memory=PromptMemory(space_key_by_index=space_key_by_index),
+        space_key_by_index=space_key_by_index,
+    )
+    focus = prompt.user_payload["decision_focus"]
+    assert focus["decision_type"] == "JAIL_DECISION"
+    assert "jail_turns" not in json.dumps(focus)
+    options = focus["scenario"]["options"]
+    assert isinstance(options["can_roll_for_doubles"], bool)
+    tools = focus["legal_tools"]
+    tool_names = {tool["tool_name"] for tool in tools}
+    assert "roll_for_doubles" in tool_names
+    for tool in tools:
+        assert "args" not in tool
 
 
 def test_two_llms_deterministic_replay() -> None:
