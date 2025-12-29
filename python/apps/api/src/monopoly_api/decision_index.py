@@ -84,6 +84,18 @@ class DecisionIndex:
                 break
         return results
 
+    def ordered(self, limit: int | None = None) -> list[dict[str, Any]]:
+        self._ensure_loaded()
+        results: list[dict[str, Any]] = []
+        for decision_id in self._order:
+            summary = self._summaries.get(decision_id)
+            if summary is None:
+                continue
+            results.append(summary.to_dict())
+            if limit is not None and len(results) >= limit:
+                break
+        return results
+
     def get_bundle(self, decision_id: str) -> dict[str, Any] | None:
         self._ensure_loaded()
         summary = self._summaries.get(decision_id)

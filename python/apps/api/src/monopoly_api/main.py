@@ -101,6 +101,22 @@ def run_decision(decision_id: str) -> dict:
     return bundle
 
 
+@app.get("/runs/{run_id}/decisions")
+def runs_decisions(run_id: str, limit: int | None = Query(None, ge=1, le=1000)) -> dict:
+    decisions = run_manager.get_decisions_for_run(run_id, limit=limit)
+    if decisions is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return {"run_id": run_id, "decisions": decisions}
+
+
+@app.get("/runs/{run_id}/decisions/{decision_id}")
+def runs_decision_detail(run_id: str, decision_id: str) -> dict:
+    bundle = run_manager.get_decision_bundle_for_run(run_id, decision_id)
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="Decision not found")
+    return bundle
+
+
 @app.websocket("/ws")
 async def ws(websocket: WebSocket) -> None:
     await websocket.accept()

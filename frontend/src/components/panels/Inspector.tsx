@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from '@/state/store';
 import { NeoBadge, cn } from '@/components/ui/NeoPrimitive';
+import { LlmIoPanel } from '@/components/panels/LlmIoPanel';
 
-type Tab = 'snapshot' | 'last' | 'stream' | 'raw';
+type Tab = 'snapshot' | 'last' | 'stream' | 'raw' | 'llm_io';
 
 const JsonPane = ({ title, data }: { title: string; data: unknown }) => (
   <div className="flex flex-col gap-1 h-full min-h-0">
@@ -36,8 +37,6 @@ const ToggleSwitch = ({ label, active, onClick }: { label: string; active: boole
 );
 
 export const Inspector = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>('snapshot');
   const [showThoughts, setShowThoughts] = useState(false);
 
   const snapshot = useGameStore((state) => state.snapshot);
@@ -45,6 +44,13 @@ export const Inspector = () => {
   const events = useGameStore((state) => state.events);
   const connection = useGameStore((state) => state.connection);
   const runStatus = useGameStore((state) => state.runStatus);
+  const inspectorOpen = useGameStore((state) => state.inspectorOpen);
+  const inspectorTab = useGameStore((state) => state.inspectorTab);
+  const inspectorFocus = useGameStore((state) => state.inspectorFocus);
+  const setInspectorOpen = useGameStore((state) => state.setInspectorOpen);
+  const setInspectorTab = useGameStore((state) => state.setInspectorTab);
+  const setInspectorFocus = useGameStore((state) => state.setInspectorFocus);
+  const setLlmIoSelectedDecisionId = useGameStore((state) => state.setLlmIoSelectedDecisionId);
 
   const lastEvent = events.length > 0 ? events[0] : null;
   const streamEvents = useMemo(() => {
@@ -52,11 +58,41 @@ export const Inspector = () => {
     return filtered.slice(0, 100);
   }, [events, showThoughts]);
 
-  if (!isOpen) {
+  useEffect(() => {
+    if (inspectorFocus) {
+      setInspectorOpen(true);
+      if (inspectorFocus.decisionId) {
+        setInspectorTab('llm_io');
+        setLlmIoSelectedDecisionId(inspectorFocus.decisionId);
+      } else {
+        setInspectorTab('stream');
+      }
+    }
+  }, [inspectorFocus, setInspectorOpen, setInspectorTab, setLlmIoSelectedDecisionId]);
+
+  const focusLabel = useMemo(() => {
+    if (!inspectorFocus) return null;
+    if (inspectorFocus.decisionId) return `Decision ${inspectorFocus.decisionId}`;
+    if (inspectorFocus.eventId) return `Event ${inspectorFocus.eventId}`;
+    if (inspectorFocus.eventIndex !== undefined) return `Event #${inspectorFocus.eventIndex}`;
+    return null;
+  }, [inspectorFocus]);
+
+  const matchesFocus = (event: typeof events[number]) => {
+    if (!inspectorFocus) return false;
+    if (inspectorFocus.eventId && event.event_id === inspectorFocus.eventId) return true;
+    if (inspectorFocus.decisionId) {
+      const decisionId = (event as any).payload?.decision_id;
+      return decisionId === inspectorFocus.decisionId;
+    }
+    return false;
+  };
+
+  if (!inspectorOpen) {
     return (
       <div className="fixed bottom-4 right-4 z-50">
         <button
-          onClick={() => setIsOpen(true)}
+          onClick={() => setInspectorOpen(true)}
           className="w-12 h-12 bg-black border-2 border-neo-white text-white shadow-neo-lg hover:rotate-90 transition-transform duration-300 flex items-center justify-center"
           title="Open Inspector"
         >
@@ -67,8 +103,8 @@ export const Inspector = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-[2px] p-4 animate-fade-in-up">
-      <div className="w-full max-w-6xl h-[85vh] flex flex-col bg-neo-bg border-4 border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] relative">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-[2px] p-2 md:p-4 animate-fade-in-up">
+      <div className="w-full max-w-[98vw] md:max-w-[92vw] h-[92vh] md:h-[94vh] flex flex-col bg-neo-bg border-4 border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] relative">
 
         {/* Header Bar */}
         <div className="h-12 bg-black text-white flex justify-between items-center px-4 select-none shrink-0">
@@ -81,13 +117,21 @@ export const Inspector = () => {
               <span>SCHEMA: {snapshot?.schema_version ?? '1.0'}</span>
             </div>
           </div>
+          {focusLabel && (
+            <NeoBadge variant="info" className="text-[9px] py-0 px-2">
+              {focusLabel}
+            </NeoBadge>
+          )}
           {runStatus.players && runStatus.players.length > 0 && runStatus.players.length !== 4 && (
             <NeoBadge variant="warning" className="text-[9px] py-0 px-2">
               PLAYERS {runStatus.players.length}/4
             </NeoBadge>
           )}
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={() => {
+              setInspectorOpen(false);
+              setInspectorFocus(null);
+            }}
             className="w-8 h-8 flex items-center justify-center bg-neo-red text-white font-bold hover:bg-red-400 transition-colors"
           >
             X
@@ -96,18 +140,18 @@ export const Inspector = () => {
 
         {/* Toolbar */}
         <div className="bg-white border-b-2 border-black p-3 flex flex-wrap gap-4 items-center shrink-0">
-          <div className="flex items-center gap-2 mr-auto overflow-x-auto pb-1 md:pb-0">
-            {(['snapshot', 'last', 'stream', 'raw'] as Tab[]).map((tab) => (
+          <div className="flex flex-wrap items-center gap-2 mr-auto pb-1 md:pb-0">
+            {(['snapshot', 'last', 'stream', 'raw', 'llm_io'] as Tab[]).map((tab) => (
               <ToggleSwitch
                 key={tab}
-                label={tab}
-                active={activeTab === tab}
-                onClick={() => setActiveTab(tab)}
+                label={tab === 'llm_io' ? 'LLM I/O' : tab}
+                active={inspectorTab === tab}
+                onClick={() => setInspectorTab(tab)}
               />
             ))}
           </div>
 
-          {activeTab === 'stream' && (
+          {inspectorTab === 'stream' && (
             <label className="flex items-center gap-2 cursor-pointer font-bold text-xs uppercase bg-neo-bg px-2 py-1 border-2 border-black active:translate-y-[1px] select-none">
               <input
                 type="checkbox"
@@ -125,20 +169,20 @@ export const Inspector = () => {
           <div className="absolute inset-0 opacity-5 pointer-events-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMwMDAiLz4KPC9zdmc+')]"></div>
 
           <div className="h-full bg-white border-2 border-black shadow-neo-sm overflow-hidden flex flex-col relative z-10">
-            {activeTab === 'snapshot' && (
+            {inspectorTab === 'snapshot' && (
               <div className="flex-1 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x-2 divide-black overflow-hidden">
                 <JsonPane title="Live State" data={snapshot ?? {}} />
                 <JsonPane title="Previous State" data={previousSnapshot ?? {}} />
               </div>
             )}
 
-            {activeTab === 'last' && (
+            {inspectorTab === 'last' && (
               <div className="flex-1 overflow-hidden">
                 <JsonPane title="Latest Event Payload" data={lastEvent ?? {}} />
               </div>
             )}
 
-            {activeTab === 'stream' && (
+            {inspectorTab === 'stream' && (
               <div className="flex-1 flex flex-col min-h-0 bg-white">
                 <div className="bg-black text-white px-2 py-1 text-[10px] uppercase font-bold flex justify-between">
                   <span>Event Log (Last 100)</span>
@@ -150,12 +194,14 @@ export const Inspector = () => {
                   )}
                   {streamEvents.map((event, idx) => {
                     const isThought = event.type === 'LLM_PRIVATE_THOUGHT';
+                    const isFocused = matchesFocus(event);
                     return (
                       <div
                         key={`${event.event_id}-${idx}`}
                         className={cn(
                           "flex items-baseline gap-2 p-2 border-b border-gray-100 font-mono text-[10px] hover:bg-blue-50 transition-colors",
-                          isThought && "bg-gray-50 text-gray-500 italic"
+                          isThought && "bg-gray-50 text-gray-500 italic",
+                          isFocused && "bg-neo-yellow/40"
                         )}
                       >
                         <span className="w-8 shrink-0 text-gray-400">#{event.turn_index}</span>
@@ -174,10 +220,16 @@ export const Inspector = () => {
               </div>
             )}
 
-            {activeTab === 'raw' && (
+            {inspectorTab === 'raw' && (
               <div className="flex-1 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x-2 divide-black overflow-hidden">
                 <JsonPane title="Websocket Connection" data={connection} />
                 <JsonPane title="Runner Status" data={runStatus} />
+              </div>
+            )}
+
+            {inspectorTab === 'llm_io' && (
+              <div className="flex-1 min-h-0">
+                <LlmIoPanel />
               </div>
             )}
           </div>

@@ -52,6 +52,30 @@ def test_turn_started_has_turn_ended_between() -> None:
             open_turn = False
 
 
+def test_turn_started_rotates_even_with_doubles() -> None:
+    engine = Engine(
+        seed=31,
+        players=_make_players(),
+        run_id="run-turn-double",
+        max_turns=12,
+        ts_step_ms=1,
+        allow_extra_turns=False,
+    )
+    engine._rng.roll_dice = lambda: (2, 2)
+
+    started_players: list[str] = []
+    while len(started_players) < 6 and not engine.is_game_over():
+        _, events, decision, _ = engine.advance_until_decision(max_steps=1)
+        if any(event["type"] == "TURN_STARTED" for event in events):
+            started_players.append(engine.state.active_player_id)
+        if decision is None:
+            break
+        action = choose_action(decision)
+        engine.apply_action(action)
+
+    assert started_players[:6] == ["p1", "p2", "p3", "p4", "p1", "p2"]
+
+
 def test_decision_id_applies_once() -> None:
     engine = Engine(seed=23, players=_make_players(), run_id="run-decision-id", max_turns=6, ts_step_ms=1)
     _, _, decision, _ = engine.advance_until_decision(max_steps=1)

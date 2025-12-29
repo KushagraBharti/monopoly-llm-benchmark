@@ -54,12 +54,14 @@ class Engine:
         max_turns: int = 30,
         start_ts_ms: int = 0,
         ts_step_ms: int = 250,
+        allow_extra_turns: bool = True,
     ) -> None:
         self.run_id = run_id
         self._rng = DeterministicRng(seed)
         self._max_turns = max_turns
         self._start_ts_ms = start_ts_ms
         self._ts_step_ms = ts_step_ms
+        self._allow_extra_turns = allow_extra_turns
         self._seq = 0
         self._started = False
         self._stop_reason: str | None = None
@@ -601,10 +603,14 @@ class Engine:
 
         d1, d2 = self._rng.roll_dice()
         is_double = d1 == d2
-        if is_double:
-            current_player.doubles_count += 1
+        if self._allow_extra_turns:
+            if is_double:
+                current_player.doubles_count += 1
+            else:
+                current_player.doubles_count = 0
         else:
             current_player.doubles_count = 0
+        rolled_double = is_double and self._allow_extra_turns
 
         self.state.phase = "RESOLVING_MOVE"
         events.append(
@@ -616,7 +622,7 @@ class Engine:
             )
         )
 
-        if is_double and current_player.doubles_count >= 3:
+        if self._allow_extra_turns and is_double and current_player.doubles_count >= 3:
             self._send_player_to_jail(
                 current_player,
                 events,
@@ -631,13 +637,13 @@ class Engine:
             d1 + d2,
             events,
             turn_index=turn_index,
-            rolled_double=is_double,
+            rolled_double=rolled_double,
         )
         if decision is not None:
             self.state.phase = "AWAITING_DECISION"
             self._pending_decision = decision
             self._pending_turn = {
-                "rolled_double": is_double,
+                "rolled_double": rolled_double,
                 "space_index": (
                     decision_space_index if decision_space_index is not None else current_player.position
                 ),
@@ -660,7 +666,7 @@ class Engine:
         post_decision = self._maybe_start_post_turn_decision(
             events,
             current_player,
-            rolled_double=is_double,
+            rolled_double=rolled_double,
         )
         return events, post_decision
 
@@ -750,10 +756,14 @@ class Engine:
         turn_index: int,
     ) -> DecisionPoint | None:
         is_double = d1 == d2
-        if is_double:
-            player.doubles_count += 1
+        if self._allow_extra_turns:
+            if is_double:
+                player.doubles_count += 1
+            else:
+                player.doubles_count = 0
         else:
             player.doubles_count = 0
+        rolled_double = is_double and self._allow_extra_turns
         self.state.phase = "RESOLVING_MOVE"
         events.append(
             self._build_event(
@@ -763,7 +773,7 @@ class Engine:
                 turn_index=turn_index,
             )
         )
-        if is_double and player.doubles_count >= 3:
+        if self._allow_extra_turns and is_double and player.doubles_count >= 3:
             self._send_player_to_jail(
                 player,
                 events,
@@ -777,13 +787,13 @@ class Engine:
             d1 + d2,
             events,
             turn_index=turn_index,
-            rolled_double=is_double,
+            rolled_double=rolled_double,
         )
         if decision is not None:
             self.state.phase = "AWAITING_DECISION"
             self._pending_decision = decision
             self._pending_turn = {
-                "rolled_double": is_double,
+                "rolled_double": rolled_double,
                 "space_index": (
                     decision_space_index if decision_space_index is not None else player.position
                 ),
@@ -802,7 +812,7 @@ class Engine:
                 )
             )
             return decision
-        return self._maybe_start_post_turn_decision(events, player, rolled_double=is_double)
+        return self._maybe_start_post_turn_decision(events, player, rolled_double=rolled_double)
 
     def _resolve_landing(
         self,
@@ -3014,7 +3024,9 @@ class Engine:
         self.state.phase = "END_TURN"
         events.append(self._build_event("TURN_ENDED", self._actor_engine(), {}, turn_index=self.state.turn_index))
         self.state.turn_index += 1
-        if allow_extra_turn:
+        if not self._allow_extra_turns:
+            player.doubles_count = 0
+        if allow_extra_turn and self._allow_extra_turns:
             next_player_id = player.player_id
         else:
             next_player_id = self._next_active_player_id(player.player_id)

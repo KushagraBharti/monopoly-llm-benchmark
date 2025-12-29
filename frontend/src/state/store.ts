@@ -34,6 +34,14 @@ export type UiState = {
   decisionHighlight: number[] | null
 }
 
+export type InspectorTab = 'snapshot' | 'last' | 'stream' | 'raw' | 'llm_io'
+
+export type InspectorFocus = {
+  decisionId?: string
+  eventId?: string
+  eventIndex?: number
+} | null
+
 export type StoreState = {
   connection: ConnectionState
   runStatus: RunStatus
@@ -41,6 +49,14 @@ export type StoreState = {
   previousSnapshot: StateSnapshot | null
   events: Event[]
   ui: UiState
+  inspectorOpen: boolean
+  inspectorTab: InspectorTab
+  inspectorFocus: InspectorFocus
+  llmIoSelectedDecisionId: string | null
+  llmIoSelectedAttempt: number | null
+  llmIoCompareMode: boolean
+  llmIoCompareAttemptA: number | null
+  llmIoCompareAttemptB: number | null
   stoppedRunId: string | null
   logResetId: number
   setStatus: (status: ConnectionStatus, error?: string) => void
@@ -50,6 +66,13 @@ export type StoreState = {
   setDeedHighlight: (index: number | null) => void
   setEventHighlight: (indices: number[] | null) => void
   setDecisionHighlight: (indices: number[] | null) => void
+  setInspectorOpen: (open: boolean) => void
+  setInspectorTab: (tab: InspectorTab) => void
+  setInspectorFocus: (focus: InspectorFocus) => void
+  setLlmIoSelectedDecisionId: (decisionId: string | null) => void
+  setLlmIoSelectedAttempt: (attempt: number | null) => void
+  setLlmIoCompareMode: (enabled: boolean) => void
+  setLlmIoCompareAttempts: (attemptA: number | null, attemptB: number | null) => void
   resetEvents: () => void
   resetLogs: () => void
 }
@@ -83,6 +106,14 @@ export const useGameStore = create<StoreState>((set) => ({
     eventHighlight: null,
     decisionHighlight: null,
   },
+  inspectorOpen: false,
+  inspectorTab: 'snapshot',
+  inspectorFocus: null,
+  llmIoSelectedDecisionId: null,
+  llmIoSelectedAttempt: null,
+  llmIoCompareMode: false,
+  llmIoCompareAttemptA: null,
+  llmIoCompareAttemptB: null,
   stoppedRunId: null,
   logResetId: 0,
   setStatus: (status, error) =>
@@ -147,6 +178,35 @@ export const useGameStore = create<StoreState>((set) => ({
     set((state) => ({
       ui: { ...state.ui, decisionHighlight: indices },
     })),
+  setInspectorOpen: (open) =>
+    set(() => ({
+      inspectorOpen: open,
+    })),
+  setInspectorTab: (tab) =>
+    set(() => ({
+      inspectorTab: tab,
+    })),
+  setInspectorFocus: (focus) =>
+    set(() => ({
+      inspectorFocus: focus,
+    })),
+  setLlmIoSelectedDecisionId: (decisionId) =>
+    set(() => ({
+      llmIoSelectedDecisionId: decisionId,
+    })),
+  setLlmIoSelectedAttempt: (attempt) =>
+    set(() => ({
+      llmIoSelectedAttempt: attempt,
+    })),
+  setLlmIoCompareMode: (enabled) =>
+    set(() => ({
+      llmIoCompareMode: enabled,
+    })),
+  setLlmIoCompareAttempts: (attemptA, attemptB) =>
+    set(() => ({
+      llmIoCompareAttemptA: attemptA,
+      llmIoCompareAttemptB: attemptB,
+    })),
   resetEvents: () => set(() => ({ events: [] })),
   resetLogs: () =>
     set((state) => ({
@@ -158,6 +218,14 @@ export const useGameStore = create<StoreState>((set) => ({
         eventHighlight: null,
         decisionHighlight: null,
       },
+      inspectorOpen: false,
+      inspectorTab: 'snapshot',
+      inspectorFocus: null,
+      llmIoSelectedDecisionId: null,
+      llmIoSelectedAttempt: null,
+      llmIoCompareMode: false,
+      llmIoCompareAttemptA: null,
+      llmIoCompareAttemptB: null,
       stoppedRunId: state.runStatus.runId ?? state.snapshot?.run_id ?? null,
       logResetId: state.logResetId + 1,
     })),

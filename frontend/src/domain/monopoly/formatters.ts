@@ -93,7 +93,7 @@ const CARD_TITLES: Record<string, string> = {
   INHERIT_100: 'Inherit $100',
 };
 
-const formatCardTitle = (cardId: string): string => {
+export const formatCardTitle = (cardId: string): string => {
   return CARD_TITLES[cardId] ?? cardId.replace(/_/g, ' ');
 };
 

@@ -248,7 +248,14 @@ def test_three_doubles_sends_player_to_jail() -> None:
         {"player_id": "p1", "name": "P1"},
         {"player_id": "p2", "name": "P2"},
     ]
-    engine = Engine(seed=7, players=players, run_id="run-three-doubles", max_turns=3, ts_step_ms=1)
+    engine = Engine(
+        seed=7,
+        players=players,
+        run_id="run-three-doubles",
+        max_turns=3,
+        ts_step_ms=1,
+        allow_extra_turns=True,
+    )
     player = engine.state.players[0]
     engine.state.active_player_id = "p1"
     player.position = 4

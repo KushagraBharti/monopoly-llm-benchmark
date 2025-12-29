@@ -167,3 +167,129 @@ def test_decision_endpoints_return_prompt_bundle(tmp_path) -> None:
         run_manager._runner_task = previous_state["runner_task"]
         run_manager._players = previous_state["players"]
         run_manager._paused = previous_state["paused"]
+
+
+def test_runs_decisions_list_is_ordered(tmp_path) -> None:
+    run_files = init_run_files(tmp_path, "run-decision-list")
+    decision_a = f"{run_files.run_id}-dec-000001"
+    decision_b = f"{run_files.run_id}-dec-000002"
+
+    run_files.write_decision(
+        {
+            "phase": "decision_started",
+            "run_id": run_files.run_id,
+            "turn_index": 1,
+            "decision_id": decision_a,
+            "decision_type": "BUY_OR_AUCTION_DECISION",
+            "player_id": "p1",
+        }
+    )
+    run_files.write_decision(
+        {
+            "phase": "decision_started",
+            "run_id": run_files.run_id,
+            "turn_index": 2,
+            "decision_id": decision_b,
+            "decision_type": "POST_TURN_DECISION",
+            "player_id": "p2",
+        }
+    )
+
+    previous_state = {
+        "run_id": run_manager._run_id,
+        "telemetry": run_manager._telemetry,
+        "decision_index": run_manager._decision_index,
+    }
+    run_manager._run_id = run_files.run_id
+    run_manager._telemetry = run_files
+    run_manager._decision_index = DecisionIndex(run_files)
+    try:
+        client = TestClient(app)
+        response = client.get(f"/runs/{run_files.run_id}/decisions")
+        assert response.status_code == 200
+        payload = response.json()
+        ids = [entry["decision_id"] for entry in payload["decisions"]]
+        assert ids == [decision_a, decision_b]
+    finally:
+        run_manager._run_id = previous_state["run_id"]
+        run_manager._telemetry = previous_state["telemetry"]
+        run_manager._decision_index = previous_state["decision_index"]
+
+
+def test_runs_decision_bundle_attempts_and_allowlist(tmp_path) -> None:
+    run_files = init_run_files(tmp_path, "run-decision-attempts")
+    decision_id = f"{run_files.run_id}-dec-000123"
+
+    user_payload = {"schema_version": "v1", "decision": {"decision_id": decision_id}}
+    tools = [{"type": "function", "function": {"name": "buy_property", "parameters": {"type": "object"}}}]
+    response = {"ok": True, "choices": [{"message": {"role": "assistant", "content": None}}]}
+    parsed = {
+        "schema_version": "v1",
+        "decision_id": decision_id,
+        "attempt_index": 0,
+        "parsed_tool_call": {"name": "buy_property", "arguments": "{}"},
+        "validation_errors": [],
+        "error_reason": None,
+        "tool_action": {
+            "schema_version": "v1",
+            "decision_id": decision_id,
+            "action": "buy_property",
+            "args": {},
+        },
+        "openrouter_request_id": "req-1",
+        "openrouter_status_code": 200,
+        "openrouter_error_type": None,
+        "final_action": {
+            "schema_version": "v1",
+            "decision_id": decision_id,
+            "action": "buy_property",
+            "args": {},
+        },
+        "retry_used": False,
+        "fallback_used": False,
+        "fallback_reason": None,
+    }
+    run_files.write_prompt_artifacts(
+        decision_id=decision_id,
+        attempt_index=0,
+        system_prompt="system prompt",
+        user_payload=user_payload,
+        tools=tools,
+        response=response,
+        parsed=parsed,
+    )
+    run_files.write_prompt_artifacts(
+        decision_id=decision_id,
+        attempt_index=1,
+        system_prompt="system prompt retry",
+        user_payload={**user_payload, "retry": True},
+        tools=tools,
+        response=response,
+        parsed={**parsed, "attempt_index": 1},
+    )
+    (run_files.prompts_dir / f"decision_{decision_id}_unknown.json").write_text("{}", encoding="utf-8")
+
+    previous_state = {
+        "run_id": run_manager._run_id,
+        "telemetry": run_manager._telemetry,
+        "decision_index": run_manager._decision_index,
+    }
+    run_manager._run_id = run_files.run_id
+    run_manager._telemetry = run_files
+    run_manager._decision_index = DecisionIndex(run_files)
+    try:
+        client = TestClient(app)
+        response = client.get(f"/runs/{run_files.run_id}/decisions/{decision_id}")
+        assert response.status_code == 200
+        bundle = response.json()
+        attempts = bundle["attempts"]
+        assert len(attempts) == 2
+        assert attempts[0]["attempt_index"] == 0
+        assert attempts[1]["attempt_index"] == 1
+        assert attempts[0]["system_prompt"] == "system prompt"
+        assert attempts[1]["system_prompt"] == "system prompt retry"
+        assert "unknown" not in attempts[0]
+    finally:
+        run_manager._run_id = previous_state["run_id"]
+        run_manager._telemetry = previous_state["telemetry"]
+        run_manager._decision_index = previous_state["decision_index"]

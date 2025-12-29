@@ -4,6 +4,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any, Callable
 
@@ -213,5 +214,47 @@ class RunManager:
             return None
         return self._decision_index.get_bundle(decision_id)
 
+    def get_decisions_for_run(self, run_id: str, limit: int | None = None) -> list[dict[str, Any]] | None:
+        run_files = self._resolve_run_files(run_id)
+        if run_files is None:
+            return None
+        index = self._resolve_decision_index(run_id, run_files)
+        return index.ordered(limit=limit)
+
+    def get_decision_bundle_for_run(self, run_id: str, decision_id: str) -> dict[str, Any] | None:
+        run_files = self._resolve_run_files(run_id)
+        if run_files is None:
+            return None
+        index = self._resolve_decision_index(run_id, run_files)
+        return index.get_bundle(decision_id)
+
     def _is_running(self) -> bool:
         return self._runner_task is not None and not self._runner_task.done()
+
+    def _resolve_run_files(self, run_id: str) -> RunFiles | None:
+        if self._telemetry is not None and self._run_id == run_id:
+            return self._telemetry
+        if not _is_safe_run_id(run_id):
+            return None
+        run_dir = self._runs_dir / run_id
+        if not run_dir.exists() or not run_dir.is_dir():
+            return None
+        return RunFiles(
+            run_id=run_id,
+            run_dir=run_dir,
+            events_path=run_dir / "events.jsonl",
+            decisions_path=run_dir / "decisions.jsonl",
+            actions_path=run_dir / "actions.jsonl",
+            snapshots_dir=run_dir / "state",
+            prompts_dir=run_dir / "prompts",
+            summary_path=run_dir / "summary.json",
+        )
+
+    def _resolve_decision_index(self, run_id: str, run_files: RunFiles) -> DecisionIndex:
+        if self._decision_index is not None and self._run_id == run_id:
+            return self._decision_index
+        return DecisionIndex(run_files)
+
+
+def _is_safe_run_id(run_id: str) -> bool:
+    return bool(re.fullmatch(r"[A-Za-z0-9_.-]+", run_id))
