@@ -172,6 +172,47 @@ def _choose_buy_if_legal(
 ) -> tuple[str, dict[str, Any]]:
     legal = {entry.get("action") for entry in decision.get("legal_actions", [])}
     decision_type = decision.get("decision_type")
+    if decision_type == "AUCTION_BID_DECISION":
+        auction = decision.get("state", {}).get("auction", {})
+        current_high_bid = int(auction.get("current_high_bid", 0) or 0)
+        min_next_bid = current_high_bid + 1
+        player_cash = None
+        for player in decision.get("state", {}).get("players", []):
+            if player.get("player_id") == decision.get("player_id"):
+                player_cash = int(player.get("cash", 0))
+                break
+        if "bid_auction" in legal and player_cash is not None and player_cash >= min_next_bid:
+            return "bid_auction", {"bid_amount": min_next_bid}
+        if "drop_out" in legal:
+            return "drop_out", {}
+    if decision_type == "TRADE_RESPONSE_DECISION":
+        if "reject_trade" in legal:
+            return "reject_trade", {}
+        if "accept_trade" in legal:
+            return "accept_trade", {}
+        if "counter_trade" in legal:
+            return "counter_trade", {
+                "offer": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+                "request": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+            }
+    if decision_type == "TRADE_PROPOSE_DECISION":
+        if "propose_trade" in legal:
+            players = decision.get("state", {}).get("players", [])
+            actor_id = decision.get("player_id")
+            target_id = next(
+                (
+                    entry.get("player_id")
+                    for entry in players
+                    if entry.get("player_id") != actor_id and not entry.get("bankrupt")
+                ),
+                None,
+            )
+            if target_id:
+                return "propose_trade", {
+                    "to_player_id": target_id,
+                    "offer": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+                    "request": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+                }
     if decision_type == "POST_TURN_ACTION_DECISION":
         if "end_turn" in legal:
             return "end_turn", {}
@@ -422,7 +463,7 @@ def test_post_turn_decision_focus_shape() -> None:
     tools = focus["legal_tools"]
     tool_names = {tool["tool_name"] for tool in tools}
     assert "end_turn" in tool_names
-    assert "propose_trade" not in tool_names
+    assert "propose_trade" in tool_names
     for tool in tools:
         if tool["tool_name"] == "end_turn":
             assert tool["args"] == {}
@@ -437,6 +478,10 @@ def test_post_turn_decision_focus_shape() -> None:
     assert "space_key" in mortgage_tool["requires"]
     unmortgage_tool = next(tool for tool in tools if tool["tool_name"] == "unmortgage_property")
     assert "space_key" in unmortgage_tool["requires"]
+    propose_tool = next(tool for tool in tools if tool["tool_name"] == "propose_trade")
+    assert "to_player_id" in propose_tool["requires"]
+    assert "offer" in propose_tool["requires"]
+    assert "request" in propose_tool["requires"]
 
 
 def test_liquidation_decision_focus_shape() -> None:
@@ -486,6 +531,165 @@ def test_liquidation_decision_focus_shape() -> None:
             assert tool["args"] == {}
         else:
             assert "args" not in tool
+
+
+def test_auction_decision_focus_shape() -> None:
+    players_state = [
+        {"player_id": "p1", "name": "P1"},
+        {"player_id": "p2", "name": "P2"},
+        {"player_id": "p3", "name": "P3"},
+        {"player_id": "p4", "name": "P4"},
+    ]
+    engine = Engine(seed=11, players=players_state, run_id="run-auction-shape", max_turns=3, ts_step_ms=1)
+    engine.state.players[0].position = 10
+    engine.state.active_player_id = "p1"
+    engine._rng.roll_dice = lambda: (1, 3)
+    target_index = 14
+    engine.state.board[target_index].owner_id = None
+
+    _, _, decision, _ = engine.advance_until_decision(max_steps=1)
+    assert decision is not None
+    assert decision["decision_type"] == "BUY_OR_AUCTION_DECISION"
+
+    action = {
+        "schema_version": "v1",
+        "decision_id": decision["decision_id"],
+        "action": "start_auction",
+        "args": {},
+    }
+    _, _, auction_decision, _ = engine.apply_action(action)
+    assert auction_decision is not None
+    assert auction_decision["decision_type"] == "AUCTION_BID_DECISION"
+
+    space_key_by_index = build_space_key_by_index()
+    prompt = build_prompt_bundle(
+        auction_decision,
+        _make_player("p2", "P2"),
+        memory=PromptMemory(space_key_by_index=space_key_by_index),
+        space_key_by_index=space_key_by_index,
+    )
+    focus = prompt.user_payload["decision_focus"]
+
+    assert focus["decision_type"] == "AUCTION_BID_DECISION"
+    assert "cash" not in json.dumps(focus)
+    assert "position" not in json.dumps(focus)
+    assert "space_index" not in json.dumps(focus)
+    scenario = focus["scenario"]
+    assert "property_space" in scenario
+    assert "current_high_bid" in scenario
+    assert "min_next_bid" in scenario
+    tools = focus["legal_tools"]
+    tool_names = {tool["tool_name"] for tool in tools}
+    assert "bid_auction" in tool_names
+    assert "drop_out" in tool_names
+    bid_tool = next(tool for tool in tools if tool["tool_name"] == "bid_auction")
+    assert "bid_amount" in bid_tool["requires"]
+    drop_tool = next(tool for tool in tools if tool["tool_name"] == "drop_out")
+    assert drop_tool["args"] == {}
+
+
+def test_auction_tool_schema_includes_bid_amount() -> None:
+    players_state = [
+        {"player_id": "p1", "name": "P1"},
+        {"player_id": "p2", "name": "P2"},
+        {"player_id": "p3", "name": "P3"},
+        {"player_id": "p4", "name": "P4"},
+    ]
+    engine = Engine(seed=15, players=players_state, run_id="run-auction-tools", max_turns=3, ts_step_ms=1)
+    engine.state.players[0].position = 10
+    engine.state.active_player_id = "p1"
+    engine._rng.roll_dice = lambda: (1, 3)
+    engine.state.board[14].owner_id = None
+
+    _, _, decision, _ = engine.advance_until_decision(max_steps=1)
+    assert decision is not None
+    action = {
+        "schema_version": "v1",
+        "decision_id": decision["decision_id"],
+        "action": "start_auction",
+        "args": {},
+    }
+    _, _, auction_decision, _ = engine.apply_action(action)
+    assert auction_decision is not None
+
+    space_key_by_index = build_space_key_by_index()
+    prompt = build_prompt_bundle(
+        auction_decision,
+        _make_player("p2", "P2"),
+        memory=PromptMemory(space_key_by_index=space_key_by_index),
+        space_key_by_index=space_key_by_index,
+    )
+    tools = build_openrouter_tools(prompt.user_payload["decision"])
+
+    bid_tool = next(tool for tool in tools if tool["function"]["name"] == "bid_auction")
+    bid_params = bid_tool["function"]["parameters"]
+    assert "bid_amount" in bid_params.get("properties", {})
+
+
+def test_trade_response_decision_focus_shape() -> None:
+    players_state = [
+        {"player_id": "p1", "name": "P1"},
+        {"player_id": "p2", "name": "P2"},
+        {"player_id": "p3", "name": "P3"},
+        {"player_id": "p4", "name": "P4"},
+    ]
+    engine = Engine(seed=17, players=players_state, run_id="run-trade-shape", max_turns=3, ts_step_ms=1)
+    engine.state.board[1].owner_id = "p1"
+    engine.state.active_player_id = "p1"
+    player = engine.state.players[0]
+    decision = engine._build_post_turn_action_decision(player)
+    engine.state.phase = "AWAITING_DECISION"
+    engine._pending_decision = decision
+    engine._pending_turn = {
+        "player_id": "p1",
+        "decision_type": "POST_TURN_ACTION_DECISION",
+        "rolled_double": False,
+    }
+    action = {
+        "schema_version": "v1",
+        "decision_id": decision["decision_id"],
+        "action": "propose_trade",
+        "args": {
+            "to_player_id": "p2",
+            "offer": {"cash": 0, "properties": ["MEDITERRANEAN_AVENUE"], "get_out_of_jail_cards": 0},
+            "request": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+        },
+    }
+    _, _, trade_decision, _ = engine.apply_action(action)
+    assert trade_decision is not None
+    assert trade_decision["decision_type"] == "TRADE_RESPONSE_DECISION"
+
+    space_key_by_index = build_space_key_by_index()
+    prompt = build_prompt_bundle(
+        trade_decision,
+        _make_player("p2", "P2"),
+        memory=PromptMemory(space_key_by_index=space_key_by_index),
+        space_key_by_index=space_key_by_index,
+    )
+    focus = prompt.user_payload["decision_focus"]
+
+    assert focus["decision_type"] == "TRADE_RESPONSE_DECISION"
+    assert "cash" not in json.dumps(focus)
+    assert "position" not in json.dumps(focus)
+    assert "jail_turns" not in json.dumps(focus)
+    scenario = focus["scenario"]
+    assert scenario["counterparty_player_id"] == "p1"
+    assert scenario["max_exchanges"] == 5
+    assert scenario["exchange_index"] == 0
+    assert isinstance(scenario["history_last_2"], list)
+    assert "current_offer" in scenario
+    tools = focus["legal_tools"]
+    tool_names = {tool["tool_name"] for tool in tools}
+    assert "accept_trade" in tool_names
+    assert "reject_trade" in tool_names
+    assert "counter_trade" in tool_names
+    accept_tool = next(tool for tool in tools if tool["tool_name"] == "accept_trade")
+    assert accept_tool["args"] == {}
+    reject_tool = next(tool for tool in tools if tool["tool_name"] == "reject_trade")
+    assert reject_tool["args"] == {}
+    counter_tool = next(tool for tool in tools if tool["tool_name"] == "counter_trade")
+    assert "offer" in counter_tool["requires"]
+    assert "request" in counter_tool["requires"]
 
 
 def test_post_turn_tool_schema_includes_build_and_sell_plans() -> None:

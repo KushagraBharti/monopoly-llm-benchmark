@@ -1,6 +1,7 @@
 from .board import BOARD_SPEC, build_board
 from .engine import Engine, advance_until_decision, create_initial_state
 from .models import BankState, GameState, PlayerState, SpaceState
+from .replay import canonical_event_lines, load_jsonl, replay_actions
 
 __all__ = [
     "BOARD_SPEC",
@@ -11,5 +12,8 @@ __all__ = [
     "SpaceState",
     "advance_until_decision",
     "build_board",
+    "canonical_event_lines",
     "create_initial_state",
+    "load_jsonl",
+    "replay_actions",
 ]

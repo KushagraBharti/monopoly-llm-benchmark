@@ -1,5 +1,5 @@
 import type { Event } from '@/net/contracts';
-import { getSpaceName } from '@/domain/monopoly/constants';
+import { getSpaceName, SPACE_INDEX_BY_KEY } from '@/domain/monopoly/constants';
 
 export type EventSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
@@ -31,6 +31,30 @@ export type EventCard = {
 export const formatMoney = (amount: number, showSign = false): string => {
   const sign = showSign ? (amount >= 0 ? '+' : '-') : '';
   return `${sign}$${Math.abs(amount)}`;
+};
+
+const formatSpaceKey = (spaceKey: string): string => {
+  const spaceIndex = SPACE_INDEX_BY_KEY[spaceKey];
+  return spaceIndex !== undefined ? getSpaceName(spaceIndex) : spaceKey;
+};
+
+const formatTradeBundle = (bundle: {
+  cash?: number;
+  properties?: string[];
+  get_out_of_jail_cards?: number;
+}): string => {
+  const parts: string[] = [];
+  if (bundle.cash) {
+    parts.push(formatMoney(bundle.cash));
+  }
+  const properties = bundle.properties ?? [];
+  if (properties.length) {
+    parts.push(properties.map(formatSpaceKey).join(', '));
+  }
+  if (bundle.get_out_of_jail_cards) {
+    parts.push(`${bundle.get_out_of_jail_cards} jail card`);
+  }
+  return parts.length ? parts.join(' + ') : 'nothing';
 };
 
 const formatCount = (count: number, label: string): string => {
@@ -85,6 +109,12 @@ const defaultCard = (event: Event): EventCard => ({
   isMinor: true,
   details: event as unknown as Record<string, unknown>,
 });
+
+const resolveSpaceIndex = (spaceKey?: string | null): number | null => {
+  if (!spaceKey) return null;
+  const normalized = spaceKey.toUpperCase();
+  return SPACE_INDEX_BY_KEY[normalized] ?? null;
+};
 
 export const formatEventCard = (event: Event): EventCard => {
   const base = {
@@ -268,6 +298,199 @@ export const formatEventCard = (event: Event): EventCard => {
         badges: [{ text: 'BUILD', tone: 'success' }],
         highlightSpaceIndices: [event.payload.space_index],
       };
+    case 'AUCTION_STARTED': {
+      const spaceIndex = resolveSpaceIndex(event.payload.property_space);
+      return {
+        ...base,
+        icon: 'A+',
+        title: 'Auction Started',
+        severity: 'info',
+        parts: [
+          { kind: 'text', value: 'Auction for' },
+          ...(spaceIndex !== null
+            ? [{ kind: 'space', spaceIndex } as const]
+            : [{ kind: 'text', value: event.payload.property_space } as const]),
+          { kind: 'text', value: 'started by' },
+          { kind: 'player', playerId: event.payload.initiator_player_id },
+        ],
+        badges: [{ text: 'AUCTION', tone: 'info' }],
+        highlightSpaceIndices: spaceIndex !== null ? [spaceIndex] : undefined,
+      };
+    }
+    case 'AUCTION_BID_PLACED': {
+      const spaceIndex = resolveSpaceIndex(event.payload.property_space);
+      return {
+        ...base,
+        icon: 'A$',
+        title: 'Auction Bid',
+        severity: 'info',
+        parts: [
+          { kind: 'player', playerId: event.payload.bidder_player_id },
+          { kind: 'text', value: 'bid' },
+          { kind: 'money', amount: event.payload.bid_amount },
+          { kind: 'text', value: 'on' },
+          ...(spaceIndex !== null
+            ? [{ kind: 'space', spaceIndex } as const]
+            : [{ kind: 'text', value: event.payload.property_space } as const]),
+        ],
+        badges: [{ text: 'BID', tone: 'info' }],
+        highlightSpaceIndices: spaceIndex !== null ? [spaceIndex] : undefined,
+      };
+    }
+    case 'AUCTION_PLAYER_DROPPED': {
+      const spaceIndex = resolveSpaceIndex(event.payload.property_space);
+      return {
+        ...base,
+        icon: 'A-',
+        title: 'Auction Drop Out',
+        severity: 'warning',
+        parts: [
+          { kind: 'player', playerId: event.payload.player_id },
+          { kind: 'text', value: 'dropped out of' },
+          ...(spaceIndex !== null
+            ? [{ kind: 'space', spaceIndex } as const]
+            : [{ kind: 'text', value: event.payload.property_space } as const]),
+        ],
+        badges: [{ text: 'AUCTION', tone: 'warning' }],
+        highlightSpaceIndices: spaceIndex !== null ? [spaceIndex] : undefined,
+      };
+    }
+    case 'AUCTION_ENDED': {
+      const spaceIndex = resolveSpaceIndex(event.payload.property_space);
+      const sold = event.payload.reason === 'SOLD';
+      const parts: EventCardPart[] = [
+        { kind: 'text', value: 'Auction ended for' },
+        ...(spaceIndex !== null
+          ? [{ kind: 'space', spaceIndex } as const]
+          : [{ kind: 'text', value: event.payload.property_space } as const]),
+      ];
+      if (sold && event.payload.winner_player_id) {
+        parts.push({ kind: 'text', value: 'won by' });
+        parts.push({ kind: 'player', playerId: event.payload.winner_player_id });
+        if (typeof event.payload.winning_bid === 'number') {
+          parts.push({ kind: 'text', value: 'for' });
+          parts.push({ kind: 'money', amount: event.payload.winning_bid });
+        }
+      } else {
+        parts.push({ kind: 'text', value: '(no bids)' });
+      }
+      return {
+        ...base,
+        icon: 'A*',
+        title: 'Auction Ended',
+        severity: sold ? 'success' : 'neutral',
+        parts,
+        badges: [{ text: event.payload.reason, tone: sold ? 'success' : 'neutral' }],
+        highlightSpaceIndices: spaceIndex !== null ? [spaceIndex] : undefined,
+      };
+    }
+    case 'TRADE_PROPOSED':
+      return {
+        ...base,
+        icon: 'T+',
+        title: 'Trade Proposed',
+        severity: 'info',
+        parts: [
+          { kind: 'player', playerId: event.payload.initiator_player_id },
+          { kind: 'text', value: 'proposed trade with' },
+          { kind: 'player', playerId: event.payload.counterparty_player_id },
+          { kind: 'text', value: `Offer: ${formatTradeBundle(event.payload.offer)}` },
+          { kind: 'text', value: `Request: ${formatTradeBundle(event.payload.request)}` },
+        ],
+        badges: [
+          {
+            text: `${event.payload.exchange_index}/${event.payload.max_exchanges}`,
+            tone: 'info',
+          },
+        ],
+      };
+    case 'TRADE_COUNTERED':
+      return {
+        ...base,
+        icon: 'T~',
+        title: 'Trade Countered',
+        severity: 'info',
+        parts: [
+          { kind: 'player', playerId: event.actor.player_id ?? event.payload.initiator_player_id },
+          { kind: 'text', value: 'countered the trade' },
+          { kind: 'text', value: `Offer: ${formatTradeBundle(event.payload.offer)}` },
+          { kind: 'text', value: `Request: ${formatTradeBundle(event.payload.request)}` },
+        ],
+        badges: [
+          {
+            text: `${event.payload.exchange_index}/${event.payload.max_exchanges}`,
+            tone: 'info',
+          },
+        ],
+      };
+    case 'TRADE_ACCEPTED':
+      return {
+        ...base,
+        icon: 'T=',
+        title: 'Trade Accepted',
+        severity: 'success',
+        parts: [
+          { kind: 'player', playerId: event.actor.player_id ?? event.payload.counterparty_player_id },
+          { kind: 'text', value: 'accepted the trade' },
+          { kind: 'text', value: `Offer: ${formatTradeBundle(event.payload.offer)}` },
+          { kind: 'text', value: `Request: ${formatTradeBundle(event.payload.request)}` },
+        ],
+        badges: [{ text: 'ACCEPTED', tone: 'success' }],
+      };
+    case 'TRADE_REJECTED':
+      return {
+        ...base,
+        icon: 'T-',
+        title: 'Trade Rejected',
+        severity: 'warning',
+        parts: [
+          { kind: 'player', playerId: event.actor.player_id ?? event.payload.counterparty_player_id },
+          { kind: 'text', value: 'rejected the trade' },
+        ],
+        badges: [{ text: 'REJECTED', tone: 'warning' }],
+      };
+    case 'TRADE_EXPIRED':
+      return {
+        ...base,
+        icon: 'T!',
+        title: 'Trade Expired',
+        severity: 'neutral',
+        parts: [
+          { kind: 'text', value: 'Trade expired between' },
+          { kind: 'player', playerId: event.payload.initiator_player_id },
+          { kind: 'text', value: 'and' },
+          { kind: 'player', playerId: event.payload.counterparty_player_id },
+        ],
+        badges: [{ text: event.payload.reason ?? 'EXPIRED', tone: 'neutral' }],
+      };
+    case 'PROPERTY_TRANSFERRED':
+      {
+        const fromPlayer = event.payload.from_player_id;
+        const toPlayer = event.payload.to_player_id;
+        const parts: EventCardPart[] = [
+          { kind: 'text', value: 'Property' },
+          { kind: 'space', spaceIndex: event.payload.space_index },
+          { kind: 'text', value: 'moved from' },
+          ...(fromPlayer
+            ? [{ kind: 'player', playerId: fromPlayer } as const]
+            : [{ kind: 'text', value: 'Bank' } as const]),
+          { kind: 'text', value: 'to' },
+          ...(toPlayer
+            ? [{ kind: 'player', playerId: toPlayer } as const]
+            : [{ kind: 'text', value: 'Bank' } as const]),
+        ];
+        return {
+          ...base,
+          icon: 'T>',
+          title: 'Property Transferred',
+          severity: 'info',
+          parts,
+          badges: [
+            { text: event.payload.mortgaged ? 'MORTGAGED' : 'UNMORTGAGED', tone: 'info' },
+          ],
+          highlightSpaceIndices: [event.payload.space_index],
+        };
+      }
     case 'HOTEL_BUILT':
       return {
         ...base,

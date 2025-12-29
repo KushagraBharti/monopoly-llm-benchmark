@@ -15,6 +15,7 @@ class RunFiles:
     run_dir: Path
     events_path: Path
     decisions_path: Path
+    actions_path: Path
     snapshots_dir: Path
     prompts_dir: Path
     summary_path: Path
@@ -50,6 +51,9 @@ class RunFiles:
 
     def write_decision(self, decision_entry: dict[str, Any]) -> None:
         append_jsonl(self.decisions_path, decision_entry)
+
+    def write_action(self, action_entry: dict[str, Any]) -> None:
+        append_jsonl(self.actions_path, action_entry)
 
     def write_prompt_artifacts(
         self,
@@ -99,6 +103,7 @@ def init_run_files(runs_dir: Path, run_id: str) -> RunFiles:
         run_dir=run_dir,
         events_path=run_dir / "events.jsonl",
         decisions_path=run_dir / "decisions.jsonl",
+        actions_path=run_dir / "actions.jsonl",
         snapshots_dir=snapshots_dir,
         prompts_dir=prompts_dir,
         summary_path=run_dir / "summary.json",

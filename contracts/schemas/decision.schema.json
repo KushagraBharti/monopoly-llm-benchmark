@@ -29,7 +29,9 @@
         "BUY_OR_AUCTION_DECISION",
         "POST_TURN_ACTION_DECISION",
         "LIQUIDATION_DECISION",
-        "AUCTION_BID",
+        "AUCTION_BID_DECISION",
+        "TRADE_PROPOSE_DECISION",
+        "TRADE_RESPONSE_DECISION",
         "END_TURN",
         "TRADE_RESPONSE"
       ]
@@ -107,6 +109,412 @@
                 "properties": {
                   "type": { "const": "object" },
                   "additionalProperties": { "const": false }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "bid_auction" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties", "required", "properties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false },
+                  "required": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": { "const": "bid_amount" }
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["bid_amount"],
+                    "properties": {
+                      "bid_amount": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["type", "minimum"],
+                        "properties": {
+                          "type": { "const": "integer" },
+                          "minimum": { "const": 0 }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "drop_out" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "propose_trade" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties", "required", "properties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false },
+                  "required": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": { "enum": ["to_player_id", "offer", "request"] }
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["to_player_id", "offer", "request"],
+                    "properties": {
+                      "to_player_id": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["type"],
+                        "properties": {
+                          "type": { "const": "string" }
+                        }
+                      },
+                      "offer": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["type", "additionalProperties", "required", "properties"],
+                        "properties": {
+                          "type": { "const": "object" },
+                          "additionalProperties": { "const": false },
+                          "required": {
+                            "type": "array",
+                            "items": { "enum": ["cash", "properties", "get_out_of_jail_cards"] }
+                          },
+                          "properties": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["cash", "properties", "get_out_of_jail_cards"],
+                            "properties": {
+                              "cash": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "minimum"],
+                                "properties": {
+                                  "type": { "const": "integer" },
+                                  "minimum": { "const": 0 }
+                                }
+                              },
+                              "properties": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "items"],
+                                "properties": {
+                                  "type": { "const": "array" },
+                                  "items": { "type": "string" }
+                                }
+                              },
+                              "get_out_of_jail_cards": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "minimum"],
+                                "properties": {
+                                  "type": { "const": "integer" },
+                                  "minimum": { "const": 0 }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "request": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["type", "additionalProperties", "required", "properties"],
+                        "properties": {
+                          "type": { "const": "object" },
+                          "additionalProperties": { "const": false },
+                          "required": {
+                            "type": "array",
+                            "items": { "enum": ["cash", "properties", "get_out_of_jail_cards"] }
+                          },
+                          "properties": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["cash", "properties", "get_out_of_jail_cards"],
+                            "properties": {
+                              "cash": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "minimum"],
+                                "properties": {
+                                  "type": { "const": "integer" },
+                                  "minimum": { "const": 0 }
+                                }
+                              },
+                              "properties": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "items"],
+                                "properties": {
+                                  "type": { "const": "array" },
+                                  "items": { "type": "string" }
+                                }
+                              },
+                              "get_out_of_jail_cards": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "minimum"],
+                                "properties": {
+                                  "type": { "const": "integer" },
+                                  "minimum": { "const": 0 }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "accept_trade" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "reject_trade" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false }
+                }
+              },
+              "ui_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "highlight_space_indices": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 0, "maximum": 39 }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action", "args_schema"],
+            "properties": {
+              "action": { "const": "counter_trade" },
+              "args_schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "additionalProperties", "required", "properties"],
+                "properties": {
+                  "type": { "const": "object" },
+                  "additionalProperties": { "const": false },
+                  "required": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": { "enum": ["offer", "request"] }
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["offer", "request"],
+                    "properties": {
+                      "offer": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["type", "additionalProperties", "required", "properties"],
+                        "properties": {
+                          "type": { "const": "object" },
+                          "additionalProperties": { "const": false },
+                          "required": {
+                            "type": "array",
+                            "items": { "enum": ["cash", "properties", "get_out_of_jail_cards"] }
+                          },
+                          "properties": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["cash", "properties", "get_out_of_jail_cards"],
+                            "properties": {
+                              "cash": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "minimum"],
+                                "properties": {
+                                  "type": { "const": "integer" },
+                                  "minimum": { "const": 0 }
+                                }
+                              },
+                              "properties": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "items"],
+                                "properties": {
+                                  "type": { "const": "array" },
+                                  "items": { "type": "string" }
+                                }
+                              },
+                              "get_out_of_jail_cards": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "minimum"],
+                                "properties": {
+                                  "type": { "const": "integer" },
+                                  "minimum": { "const": 0 }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "request": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["type", "additionalProperties", "required", "properties"],
+                        "properties": {
+                          "type": { "const": "object" },
+                          "additionalProperties": { "const": false },
+                          "required": {
+                            "type": "array",
+                            "items": { "enum": ["cash", "properties", "get_out_of_jail_cards"] }
+                          },
+                          "properties": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["cash", "properties", "get_out_of_jail_cards"],
+                            "properties": {
+                              "cash": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "minimum"],
+                                "properties": {
+                                  "type": { "const": "integer" },
+                                  "minimum": { "const": 0 }
+                                }
+                              },
+                              "properties": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "items"],
+                                "properties": {
+                                  "type": { "const": "array" },
+                                  "items": { "type": "string" }
+                                }
+                              },
+                              "get_out_of_jail_cards": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": ["type", "minimum"],
+                                "properties": {
+                                  "type": { "const": "integer" },
+                                  "minimum": { "const": 0 }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               },
               "ui_hints": {

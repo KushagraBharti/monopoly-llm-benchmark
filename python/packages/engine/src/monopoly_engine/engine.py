@@ -9,6 +9,7 @@ from .board import (
     OWNABLE_KINDS,
     PROPERTY_RENT_TABLES,
     RAILROAD_RENTS,
+    SPACE_KEY_BY_INDEX,
     SPACE_INDEX_BY_KEY,
     TAX_AMOUNTS,
     UTILITY_RENT_MULTIPLIER,
@@ -16,7 +17,16 @@ from .board import (
     normalize_space_key,
 )
 from .cards import CHANCE_CARDS, COMMUNITY_CHEST_CARDS
-from .models import BankState, GameState, PlayerState, SpaceState
+from .models import (
+    AuctionState,
+    BankState,
+    GameState,
+    PlayerState,
+    SpaceState,
+    TradeBundle,
+    TradeExchange,
+    TradeThread,
+)
 from .rng import DeterministicRng
 
 DecisionPoint = dict[str, Any]
@@ -31,6 +41,7 @@ CHANCE_REPAIR_HOTEL_COST = 100
 COMMUNITY_REPAIR_HOUSE_COST = 40
 COMMUNITY_REPAIR_HOTEL_COST = 115
 UTILITY_CARD_MULTIPLIER = 10
+MAX_TRADE_EXCHANGES = 5
 
 
 class Engine:
@@ -191,15 +202,22 @@ class Engine:
 
         if decision_type == "BUY_OR_AUCTION_DECISION":
             space_index = int(pending_turn.get("space_index", 0))
+            rolled_double = bool(pending_turn.get("rolled_double", False))
             if action_name == "buy_property":
                 space = self.state.board[space_index]
                 self._apply_property_purchase(player, space, events)
             elif action_name == "start_auction":
-                pass
+                decision = self._start_auction(
+                    player,
+                    space_index,
+                    events,
+                    rolled_double=rolled_double,
+                )
+                snapshot = self.get_snapshot()
+                if decision is not None:
+                    return self.state, events, decision, snapshot
             else:
                 raise ValueError(f"Unsupported action: {action_name}")
-
-            rolled_double = bool(pending_turn.get("rolled_double", False))
             decision = self._maybe_start_post_turn_decision(
                 events,
                 player,
@@ -355,6 +373,114 @@ class Engine:
 
             raise ValueError(f"Unsupported action: {action_name}")
 
+        if decision_type == "AUCTION_BID_DECISION":
+            auction = self.state.auction
+            if auction is None:
+                raise ValueError("No active auction for decision.")
+
+            if action_name == "bid_auction":
+                bid_amount = int(action.get("args", {}).get("bid_amount", 0))
+                self._apply_auction_bid(player, auction, bid_amount, events)
+            elif action_name == "drop_out":
+                self._apply_auction_drop_out(player, auction, events)
+            else:
+                raise ValueError(f"Unsupported action: {action_name}")
+
+            if self.state.auction is not None:
+                auction = self.state.auction
+                if auction.active_bidders_player_ids:
+                    current_bidder = auction.active_bidders_player_ids[auction.current_bidder_index]
+                    self.state.active_player_id = current_bidder
+                decision = self._build_auction_bid_decision(auction)
+                self.state.phase = "AWAITING_DECISION"
+                self._pending_decision = decision
+                self._pending_turn = {
+                    "player_id": decision["player_id"],
+                    "decision_type": "AUCTION_BID_DECISION",
+                }
+                events.append(
+                    self._build_event(
+                        "LLM_DECISION_REQUESTED",
+                        self._actor_engine(),
+                        {
+                            "decision_id": decision["decision_id"],
+                            "player_id": decision["player_id"],
+                            "decision_type": decision["decision_type"],
+                        },
+                        turn_index=self.state.turn_index,
+                    )
+                )
+                snapshot = self.get_snapshot()
+                return self.state, events, decision, snapshot
+
+            snapshot = self.get_snapshot()
+            if self._pending_decision is not None:
+                return self.state, events, self._pending_decision, snapshot
+            if self._should_end_game():
+                self._finish_game(events)
+                snapshot = self.get_snapshot()
+            return self.state, events, None, snapshot
+
+        if decision_type == "TRADE_RESPONSE_DECISION":
+            trade = self.state.trade
+            if trade is None:
+                raise ValueError("No active trade for decision.")
+
+            if action_name == "accept_trade":
+                self._apply_trade_accept(trade, events)
+                self.state.trade = None
+                turn_owner = self._find_player(trade.turn_owner_player_id)
+                if turn_owner is not None:
+                    self._end_turn(
+                        events,
+                        turn_owner,
+                        allow_extra_turn=trade.rolled_double
+                        and not turn_owner.bankrupt
+                        and not turn_owner.in_jail,
+                    )
+                snapshot = self.get_snapshot()
+                if self._should_end_game():
+                    self._finish_game(events)
+                    snapshot = self.get_snapshot()
+                return self.state, events, None, snapshot
+
+            if action_name == "reject_trade":
+                events.append(
+                    self._build_event(
+                        "TRADE_REJECTED",
+                        self._actor_player(player.player_id),
+                        self._trade_event_payload(trade),
+                        turn_index=self.state.turn_index,
+                    )
+                )
+                self.state.trade = None
+                turn_owner = self._find_player(trade.turn_owner_player_id)
+                if turn_owner is not None:
+                    self._end_turn(
+                        events,
+                        turn_owner,
+                        allow_extra_turn=trade.rolled_double
+                        and not turn_owner.bankrupt
+                        and not turn_owner.in_jail,
+                    )
+                snapshot = self.get_snapshot()
+                if self._should_end_game():
+                    self._finish_game(events)
+                    snapshot = self.get_snapshot()
+                return self.state, events, None, snapshot
+
+            if action_name == "counter_trade":
+                decision = self._apply_trade_counter(player, trade, action, events)
+                snapshot = self.get_snapshot()
+                if decision is not None:
+                    return self.state, events, decision, snapshot
+                if self._should_end_game():
+                    self._finish_game(events)
+                    snapshot = self.get_snapshot()
+                return self.state, events, None, snapshot
+
+            raise ValueError(f"Unsupported action: {action_name}")
+
         if decision_type == "POST_TURN_ACTION_DECISION":
             rolled_double = bool(pending_turn.get("rolled_double", False))
             if action_name == "end_turn":
@@ -367,6 +493,11 @@ class Engine:
                 self._apply_build_plan(player, action, events)
             elif action_name == "sell_houses_or_hotel":
                 self._apply_sell_plan(player, action, events)
+            elif action_name == "propose_trade":
+                decision = self._start_trade(player, action, events, rolled_double=rolled_double)
+                snapshot = self.get_snapshot()
+                if decision is not None:
+                    return self.state, events, decision, snapshot
             else:
                 raise ValueError(f"Unsupported action: {action_name}")
 
@@ -1186,6 +1317,33 @@ class Engine:
             "legal_actions": legal_actions,
         }
 
+    def _build_auction_bid_decision(self, auction: AuctionState) -> DecisionPoint:
+        decision_id = f"{self.run_id}-dec-{self._decision_seq:06d}"
+        self._decision_seq += 1
+        current_bidder = None
+        if auction.active_bidders_player_ids:
+            if 0 <= auction.current_bidder_index < len(auction.active_bidders_player_ids):
+                current_bidder = auction.active_bidders_player_ids[auction.current_bidder_index]
+            else:
+                current_bidder = auction.active_bidders_player_ids[0]
+        legal_actions: list[dict[str, Any]] = [
+            self._build_space_action(
+                "bid_auction",
+                args_schema=self._args_schema_bid_amount(),
+            ),
+            self._build_space_action("drop_out"),
+        ]
+        return {
+            "schema_version": "v1",
+            "run_id": self.run_id,
+            "decision_id": decision_id,
+            "turn_index": self.state.turn_index,
+            "player_id": current_bidder or auction.initiator_player_id,
+            "decision_type": "AUCTION_BID_DECISION",
+            "state": self.get_snapshot(),
+            "legal_actions": legal_actions,
+        }
+
     def _build_jail_decision(self, player: PlayerState) -> DecisionPoint:
         decision_id = f"{self.run_id}-dec-{self._decision_seq:06d}"
         self._decision_seq += 1
@@ -1217,6 +1375,13 @@ class Engine:
         legal_actions: list[dict[str, Any]] = [
             self._build_space_action("end_turn"),
         ]
+        if options["can_trade_with"]:
+            legal_actions.append(
+                self._build_space_action(
+                    "propose_trade",
+                    args_schema=self._args_schema_trade_offer(include_to_player=True),
+                )
+            )
         if options["mortgageable_space_indices"]:
             legal_actions.append(
                 self._build_space_action(
@@ -1355,6 +1520,570 @@ class Engine:
         )
         return decision
 
+    def _auction_bidders_in_order(self, start_after_id: str) -> list[str]:
+        if not self.state.players:
+            return []
+        try:
+            start_index = next(
+                idx for idx, candidate in enumerate(self.state.players) if candidate.player_id == start_after_id
+            )
+        except StopIteration:
+            start_index = -1
+        ordered: list[str] = []
+        for offset in range(1, len(self.state.players) + 1):
+            candidate = self.state.players[(start_index + offset) % len(self.state.players)]
+            if candidate.bankrupt:
+                continue
+            ordered.append(candidate.player_id)
+        return ordered
+
+    def _start_auction(
+        self,
+        player: PlayerState,
+        space_index: int,
+        events: list[Event],
+        *,
+        rolled_double: bool,
+    ) -> DecisionPoint | None:
+        space = self.state.board[space_index]
+        if space.owner_id is not None or space.kind not in OWNABLE_KINDS:
+            return None
+        property_space_key = SPACE_KEY_BY_INDEX.get(space.index) or normalize_space_key(space.name)
+        bidders = self._auction_bidders_in_order(player.player_id)
+        if not bidders:
+            return None
+        auction = AuctionState(
+            property_space_key=property_space_key,
+            property_space_index=space.index,
+            current_high_bid=0,
+            current_leader_player_id=None,
+            active_bidders_player_ids=bidders,
+            current_bidder_index=0,
+            initiator_player_id=player.player_id,
+            turn_owner_player_id=player.player_id,
+            rolled_double=rolled_double,
+        )
+        self.state.auction = auction
+        current_bidder = auction.active_bidders_player_ids[auction.current_bidder_index]
+        self.state.active_player_id = current_bidder
+        self.state.phase = "AWAITING_DECISION"
+        events.append(
+            self._build_event(
+                "AUCTION_STARTED",
+                self._actor_engine(),
+                {
+                    "property_space": property_space_key,
+                    "initiator_player_id": player.player_id,
+                },
+                turn_index=self.state.turn_index,
+            )
+        )
+        decision = self._build_auction_bid_decision(auction)
+        self._pending_decision = decision
+        self._pending_turn = {
+            "player_id": decision["player_id"],
+            "decision_type": "AUCTION_BID_DECISION",
+        }
+        events.append(
+            self._build_event(
+                "LLM_DECISION_REQUESTED",
+                self._actor_engine(),
+                {
+                    "decision_id": decision["decision_id"],
+                    "player_id": decision["player_id"],
+                    "decision_type": decision["decision_type"],
+                },
+                turn_index=self.state.turn_index,
+            )
+        )
+        return decision
+
+    def _apply_auction_bid(
+        self,
+        player: PlayerState,
+        auction: AuctionState,
+        bid_amount: int,
+        events: list[Event],
+    ) -> None:
+        auction.current_high_bid = bid_amount
+        auction.current_leader_player_id = player.player_id
+        events.append(
+            self._build_event(
+                "AUCTION_BID_PLACED",
+                self._actor_player(player.player_id),
+                {
+                    "property_space": auction.property_space_key,
+                    "bidder_player_id": player.player_id,
+                    "bid_amount": bid_amount,
+                },
+                turn_index=self.state.turn_index,
+            )
+        )
+        if auction.active_bidders_player_ids:
+            auction.current_bidder_index = (auction.current_bidder_index + 1) % len(
+                auction.active_bidders_player_ids
+            )
+        self._maybe_finish_auction(auction, events)
+
+    def _apply_auction_drop_out(
+        self,
+        player: PlayerState,
+        auction: AuctionState,
+        events: list[Event],
+    ) -> None:
+        if not auction.active_bidders_player_ids:
+            return
+        dropped = auction.active_bidders_player_ids.pop(auction.current_bidder_index)
+        events.append(
+            self._build_event(
+                "AUCTION_PLAYER_DROPPED",
+                self._actor_player(player.player_id),
+                {
+                    "property_space": auction.property_space_key,
+                    "player_id": dropped,
+                },
+                turn_index=self.state.turn_index,
+            )
+        )
+        if auction.active_bidders_player_ids:
+            if auction.current_bidder_index >= len(auction.active_bidders_player_ids):
+                auction.current_bidder_index = 0
+        self._maybe_finish_auction(auction, events)
+
+    def _maybe_finish_auction(self, auction: AuctionState, events: list[Event]) -> None:
+        if len(auction.active_bidders_player_ids) > 1:
+            return
+        self._finalize_auction(auction, events)
+
+    def _finalize_auction(self, auction: AuctionState, events: list[Event]) -> None:
+        space = self.state.board[auction.property_space_index]
+        winner_id = auction.current_leader_player_id
+        winning_bid = auction.current_high_bid if winner_id is not None else None
+        if winner_id is not None and winning_bid is not None:
+            winner = self._find_player(winner_id)
+            if winner is not None:
+                self._apply_auction_purchase(winner, space, winning_bid, events)
+        events.append(
+            self._build_event(
+                "AUCTION_ENDED",
+                self._actor_engine(),
+                {
+                    "property_space": auction.property_space_key,
+                    "winner_player_id": winner_id,
+                    "winning_bid": winning_bid,
+                    "reason": "SOLD" if winner_id is not None else "NO_BIDS",
+                },
+                turn_index=self.state.turn_index,
+            )
+        )
+        self.state.auction = None
+        turn_owner = self._find_player(auction.turn_owner_player_id)
+        if turn_owner is None:
+            return
+        self.state.active_player_id = turn_owner.player_id
+        decision = self._maybe_start_post_turn_decision(
+            events,
+            turn_owner,
+            rolled_double=auction.rolled_double,
+        )
+        if decision is not None:
+            return
+
+    def _trade_other_player_id(self, trade: TradeThread, player_id: str) -> str:
+        if player_id == trade.initiator_player_id:
+            return trade.counterparty_player_id
+        if player_id == trade.counterparty_player_id:
+            return trade.initiator_player_id
+        raise ValueError("Player is not part of active trade.")
+
+    def _trade_event_payload(self, trade: TradeThread) -> dict[str, Any]:
+        return {
+            "initiator_player_id": trade.initiator_player_id,
+            "counterparty_player_id": trade.counterparty_player_id,
+            "exchange_index": trade.exchange_index,
+            "max_exchanges": trade.max_exchanges,
+            "offer": trade.current_offer.offer.to_snapshot(),
+            "request": trade.current_offer.request.to_snapshot(),
+        }
+
+    def _parse_trade_bundle(self, payload: dict[str, Any], *, field_name: str) -> TradeBundle:
+        if not isinstance(payload, dict):
+            raise ValueError(f"Invalid trade bundle for {field_name}.")
+        cash = int(payload.get("cash", 0))
+        properties = payload.get("properties", [])
+        cards = int(payload.get("get_out_of_jail_cards", 0))
+        if cash < 0 or cards < 0:
+            raise ValueError("Trade bundle values must be non-negative.")
+        if not isinstance(properties, list):
+            raise ValueError("Trade bundle properties must be a list.")
+        normalized: list[str] = []
+        for entry in properties:
+            if not isinstance(entry, str):
+                raise ValueError("Trade bundle properties must be strings.")
+            normalized.append(normalize_space_key(entry))
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Duplicate properties in trade bundle.")
+        return TradeBundle(cash=cash, properties=normalized, get_out_of_jail_cards=cards)
+
+    def _validate_trade_bundle(
+        self,
+        bundle: TradeBundle,
+        owner: PlayerState,
+        *,
+        allow_cash_overdraft: bool,
+    ) -> None:
+        if bundle.cash < 0 or bundle.get_out_of_jail_cards < 0:
+            raise ValueError("Trade bundle contains negative values.")
+        if not allow_cash_overdraft and owner.cash < bundle.cash:
+            raise ValueError("Insufficient cash for trade bundle.")
+        if owner.get_out_of_jail_cards < bundle.get_out_of_jail_cards:
+            raise ValueError("Insufficient jail cards for trade bundle.")
+        for space_key in bundle.properties:
+            space_index = self._space_index_from_key(space_key)
+            if space_index is None:
+                raise ValueError("Unknown trade property.")
+            space = self.state.board[space_index]
+            if space.owner_id != owner.player_id:
+                raise ValueError("Trade property not owned by player.")
+            if space.houses > 0 or space.hotel:
+                raise ValueError("Cannot trade property with buildings.")
+            if space.kind not in OWNABLE_KINDS:
+                raise ValueError("Invalid trade property.")
+
+    def _trade_interest_cost(self, properties: list[str]) -> int:
+        total = 0
+        for space_key in properties:
+            space_index = self._space_index_from_key(space_key)
+            if space_index is None:
+                raise ValueError("Unknown trade property.")
+            space = self.state.board[space_index]
+            if space.mortgaged:
+                total += int(math.ceil(self._mortgage_value(space) * 0.1))
+        return total
+
+    def _trade_cash_after(
+        self,
+        offerer: PlayerState,
+        receiver: PlayerState,
+        offer: TradeBundle,
+        request: TradeBundle,
+    ) -> tuple[int, int]:
+        offerer_interest = self._trade_interest_cost(request.properties)
+        receiver_interest = self._trade_interest_cost(offer.properties)
+        offerer_cash_after = offerer.cash - offer.cash + request.cash - offerer_interest
+        receiver_cash_after = receiver.cash - request.cash + offer.cash - receiver_interest
+        return offerer_cash_after, receiver_cash_after
+
+    def _can_accept_trade(self, trade: TradeThread) -> bool:
+        try:
+            self._validate_trade_acceptance(trade)
+        except ValueError:
+            return False
+        return True
+
+    def _validate_trade_acceptance(self, trade: TradeThread) -> None:
+        offerer = self._find_player(trade.current_offer.from_player_id)
+        if offerer is None:
+            raise ValueError("Missing trade offerer.")
+        receiver_id = self._trade_other_player_id(trade, offerer.player_id)
+        receiver = self._find_player(receiver_id)
+        if receiver is None:
+            raise ValueError("Missing trade receiver.")
+        self._validate_trade_bundle(trade.current_offer.offer, offerer, allow_cash_overdraft=True)
+        self._validate_trade_bundle(trade.current_offer.request, receiver, allow_cash_overdraft=True)
+        offerer_cash_after, receiver_cash_after = self._trade_cash_after(
+            offerer,
+            receiver,
+            trade.current_offer.offer,
+            trade.current_offer.request,
+        )
+        if offerer_cash_after < 0 or receiver_cash_after < 0:
+            raise ValueError("Trade would result in negative cash.")
+
+    def _transfer_property(
+        self,
+        space_index: int,
+        *,
+        from_player_id: str,
+        to_player_id: str,
+        events: list[Event],
+    ) -> None:
+        space = self.state.board[space_index]
+        space.owner_id = to_player_id
+        events.append(
+            self._build_event(
+                "PROPERTY_TRANSFERRED",
+                self._actor_engine(),
+                {
+                    "from_player_id": from_player_id,
+                    "to_player_id": to_player_id,
+                    "space_index": space_index,
+                    "mortgaged": space.mortgaged,
+                },
+                turn_index=self.state.turn_index,
+            )
+        )
+
+    def _transfer_jail_cards(
+        self,
+        from_player: PlayerState,
+        to_player: PlayerState,
+        count: int,
+    ) -> None:
+        if count <= 0:
+            return
+        if from_player.get_out_of_jail_cards < count:
+            raise ValueError("Insufficient jail cards to transfer.")
+        sources = self._jail_card_sources.get(from_player.player_id, [])
+        if len(sources) < count:
+            raise ValueError("Missing jail card sources for transfer.")
+        from_player.get_out_of_jail_cards -= count
+        to_player.get_out_of_jail_cards += count
+        for _ in range(count):
+            source = sources.pop(0)
+            self._jail_card_sources.setdefault(to_player.player_id, []).append(source)
+
+    def _apply_trade_accept(self, trade: TradeThread, events: list[Event]) -> None:
+        self._validate_trade_acceptance(trade)
+        offerer = self._find_player(trade.current_offer.from_player_id)
+        if offerer is None:
+            raise ValueError("Missing trade offerer.")
+        receiver_id = self._trade_other_player_id(trade, offerer.player_id)
+        receiver = self._find_player(receiver_id)
+        if receiver is None:
+            raise ValueError("Missing trade receiver.")
+
+        events.append(
+            self._build_event(
+                "TRADE_ACCEPTED",
+                self._actor_player(receiver.player_id),
+                self._trade_event_payload(trade),
+                turn_index=self.state.turn_index,
+            )
+        )
+
+        offer = trade.current_offer.offer
+        request = trade.current_offer.request
+
+        if offer.cash:
+            self._apply_cash_delta(offerer, -offer.cash, "TRADE_CASH", events, turn_index=self.state.turn_index)
+            self._apply_cash_delta(receiver, offer.cash, "TRADE_CASH", events, turn_index=self.state.turn_index)
+        if request.cash:
+            self._apply_cash_delta(receiver, -request.cash, "TRADE_CASH", events, turn_index=self.state.turn_index)
+            self._apply_cash_delta(offerer, request.cash, "TRADE_CASH", events, turn_index=self.state.turn_index)
+
+        for space_key in offer.properties:
+            space_index = self._space_index_from_key(space_key)
+            if space_index is None:
+                raise ValueError("Unknown trade property.")
+            self._transfer_property(
+                space_index,
+                from_player_id=offerer.player_id,
+                to_player_id=receiver.player_id,
+                events=events,
+            )
+        for space_key in request.properties:
+            space_index = self._space_index_from_key(space_key)
+            if space_index is None:
+                raise ValueError("Unknown trade property.")
+            self._transfer_property(
+                space_index,
+                from_player_id=receiver.player_id,
+                to_player_id=offerer.player_id,
+                events=events,
+            )
+
+        self._transfer_jail_cards(offerer, receiver, offer.get_out_of_jail_cards)
+        self._transfer_jail_cards(receiver, offerer, request.get_out_of_jail_cards)
+
+        offerer_interest = self._trade_interest_cost(request.properties)
+        receiver_interest = self._trade_interest_cost(offer.properties)
+        if offerer_interest:
+            self._apply_cash_delta(
+                offerer,
+                -offerer_interest,
+                "MORTGAGE_INTEREST",
+                events,
+                turn_index=self.state.turn_index,
+            )
+        if receiver_interest:
+            self._apply_cash_delta(
+                receiver,
+                -receiver_interest,
+                "MORTGAGE_INTEREST",
+                events,
+                turn_index=self.state.turn_index,
+            )
+
+    def _apply_trade_counter(
+        self,
+        player: PlayerState,
+        trade: TradeThread,
+        action: dict[str, Any],
+        events: list[Event],
+    ) -> DecisionPoint | None:
+        args = action.get("args", {})
+        offer_bundle = self._parse_trade_bundle(args.get("offer"), field_name="offer")
+        request_bundle = self._parse_trade_bundle(args.get("request"), field_name="request")
+        counterparty_id = self._trade_other_player_id(trade, player.player_id)
+        counterparty = self._find_player(counterparty_id)
+        if counterparty is None:
+            raise ValueError("Missing trade counterparty.")
+        self._validate_trade_bundle(offer_bundle, player, allow_cash_overdraft=False)
+        self._validate_trade_bundle(request_bundle, counterparty, allow_cash_overdraft=True)
+        trade.history.append(trade.current_offer)
+        trade.current_offer = TradeExchange(
+            from_player_id=player.player_id,
+            offer=offer_bundle,
+            request=request_bundle,
+        )
+        trade.exchange_index += 1
+        events.append(
+            self._build_event(
+                "TRADE_COUNTERED",
+                self._actor_player(player.player_id),
+                self._trade_event_payload(trade),
+                turn_index=self.state.turn_index,
+            )
+        )
+        if trade.exchange_index >= trade.max_exchanges:
+            payload = self._trade_event_payload(trade)
+            payload["reason"] = "MAX_EXCHANGES"
+            events.append(
+                self._build_event(
+                    "TRADE_EXPIRED",
+                    self._actor_engine(),
+                    payload,
+                    turn_index=self.state.turn_index,
+                )
+            )
+            self.state.trade = None
+            turn_owner = self._find_player(trade.turn_owner_player_id)
+            if turn_owner is not None:
+                self._end_turn(
+                    events,
+                    turn_owner,
+                    allow_extra_turn=trade.rolled_double
+                    and not turn_owner.bankrupt
+                    and not turn_owner.in_jail,
+                )
+            return None
+
+        decision = self._build_trade_response_decision(trade, actor_player_id=counterparty.player_id)
+        self.state.phase = "AWAITING_DECISION"
+        self._pending_decision = decision
+        self._pending_turn = {
+            "player_id": decision["player_id"],
+            "decision_type": "TRADE_RESPONSE_DECISION",
+        }
+        events.append(
+            self._build_event(
+                "LLM_DECISION_REQUESTED",
+                self._actor_engine(),
+                {
+                    "decision_id": decision["decision_id"],
+                    "player_id": decision["player_id"],
+                    "decision_type": decision["decision_type"],
+                },
+                turn_index=self.state.turn_index,
+            )
+        )
+        return decision
+
+    def _build_trade_response_decision(
+        self,
+        trade: TradeThread,
+        *,
+        actor_player_id: str,
+    ) -> DecisionPoint:
+        decision_id = f"{self.run_id}-dec-{self._decision_seq:06d}"
+        self._decision_seq += 1
+        legal_actions: list[dict[str, Any]] = []
+        if actor_player_id != trade.current_offer.from_player_id and self._can_accept_trade(trade):
+            legal_actions.append(self._build_space_action("accept_trade"))
+        legal_actions.append(self._build_space_action("reject_trade"))
+        legal_actions.append(
+            self._build_space_action(
+                "counter_trade",
+                args_schema=self._args_schema_trade_offer(include_to_player=False),
+            )
+        )
+        return {
+            "schema_version": "v1",
+            "run_id": self.run_id,
+            "decision_id": decision_id,
+            "turn_index": self.state.turn_index,
+            "player_id": actor_player_id,
+            "decision_type": "TRADE_RESPONSE_DECISION",
+            "state": self.get_snapshot(),
+            "legal_actions": legal_actions,
+        }
+
+    def _start_trade(
+        self,
+        player: PlayerState,
+        action: dict[str, Any],
+        events: list[Event],
+        *,
+        rolled_double: bool,
+    ) -> DecisionPoint | None:
+        args = action.get("args", {})
+        to_player_id = args.get("to_player_id")
+        if not isinstance(to_player_id, str):
+            raise ValueError("Missing trade counterparty.")
+        if to_player_id == player.player_id:
+            raise ValueError("Cannot trade with self.")
+        counterparty = self._find_player(to_player_id)
+        if counterparty is None or counterparty.bankrupt:
+            raise ValueError("Invalid trade counterparty.")
+        offer_bundle = self._parse_trade_bundle(args.get("offer"), field_name="offer")
+        request_bundle = self._parse_trade_bundle(args.get("request"), field_name="request")
+        self._validate_trade_bundle(offer_bundle, player, allow_cash_overdraft=False)
+        self._validate_trade_bundle(request_bundle, counterparty, allow_cash_overdraft=True)
+        trade = TradeThread(
+            initiator_player_id=player.player_id,
+            counterparty_player_id=counterparty.player_id,
+            max_exchanges=MAX_TRADE_EXCHANGES,
+            exchange_index=0,
+            history=[],
+            current_offer=TradeExchange(
+                from_player_id=player.player_id,
+                offer=offer_bundle,
+                request=request_bundle,
+            ),
+            turn_owner_player_id=player.player_id,
+            rolled_double=rolled_double,
+        )
+        self.state.trade = trade
+        events.append(
+            self._build_event(
+                "TRADE_PROPOSED",
+                self._actor_player(player.player_id),
+                self._trade_event_payload(trade),
+                turn_index=self.state.turn_index,
+            )
+        )
+        decision = self._build_trade_response_decision(trade, actor_player_id=counterparty.player_id)
+        self.state.phase = "AWAITING_DECISION"
+        self._pending_decision = decision
+        self._pending_turn = {
+            "player_id": decision["player_id"],
+            "decision_type": "TRADE_RESPONSE_DECISION",
+        }
+        events.append(
+            self._build_event(
+                "LLM_DECISION_REQUESTED",
+                self._actor_engine(),
+                {
+                    "decision_id": decision["decision_id"],
+                    "player_id": decision["player_id"],
+                    "decision_type": decision["decision_type"],
+                },
+                turn_index=self.state.turn_index,
+            )
+        )
+        return decision
+
     def _build_space_action(
         self,
         action_name: str,
@@ -1381,6 +2110,49 @@ class Engine:
             "additionalProperties": False,
             "required": ["space_key"],
             "properties": {"space_key": {"type": "string"}},
+        }
+
+    @staticmethod
+    def _args_schema_bid_amount() -> dict[str, Any]:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["bid_amount"],
+            "properties": {
+                "bid_amount": {
+                    "type": "integer",
+                    "minimum": 0,
+                }
+            },
+        }
+
+    @staticmethod
+    def _args_schema_trade_bundle() -> dict[str, Any]:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["cash", "properties", "get_out_of_jail_cards"],
+            "properties": {
+                "cash": {"type": "integer", "minimum": 0},
+                "properties": {"type": "array", "items": {"type": "string"}},
+                "get_out_of_jail_cards": {"type": "integer", "minimum": 0},
+            },
+        }
+
+    def _args_schema_trade_offer(self, *, include_to_player: bool) -> dict[str, Any]:
+        required = ["offer", "request"]
+        properties: dict[str, Any] = {
+            "offer": self._args_schema_trade_bundle(),
+            "request": self._args_schema_trade_bundle(),
+        }
+        if include_to_player:
+            required = ["to_player_id", "offer", "request"]
+            properties["to_player_id"] = {"type": "string"}
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "required": required,
+            "properties": properties,
         }
 
     @staticmethod
@@ -2184,6 +2956,36 @@ class Engine:
             )
         )
 
+    def _apply_auction_purchase(
+        self,
+        player: PlayerState,
+        space: SpaceState,
+        price: int,
+        events: list[Event],
+    ) -> None:
+        if space.owner_id is not None:
+            raise ValueError("Property is already owned.")
+        if player.cash < price:
+            raise ValueError("Insufficient cash for auction bid.")
+        player.cash -= price
+        space.owner_id = player.player_id
+        events.append(
+            self._build_event(
+                "PROPERTY_PURCHASED",
+                self._actor_player(player.player_id),
+                {"player_id": player.player_id, "space_index": space.index, "price": price},
+                turn_index=self.state.turn_index,
+            )
+        )
+        events.append(
+            self._build_event(
+                "CASH_CHANGED",
+                self._actor_player(player.player_id),
+                {"player_id": player.player_id, "delta": -price, "reason": "auction_bid"},
+                turn_index=self.state.turn_index,
+            )
+        )
+
     def _apply_cash_delta(
         self,
         player: PlayerState,
@@ -2300,6 +3102,53 @@ class Engine:
             args = action.get("args")
             if not isinstance(args, dict) or "sell_plan" not in args:
                 return "Missing sell_plan"
+        if action.get("action") == "bid_auction":
+            args = action.get("args")
+            if not isinstance(args, dict) or "bid_amount" not in args:
+                return "Missing bid_amount"
+            if self.state.auction is None:
+                return "No active auction"
+            try:
+                bid_amount = int(args.get("bid_amount", 0))
+            except (TypeError, ValueError):
+                return "Invalid bid_amount"
+            min_next_bid = self.state.auction.current_high_bid + 1
+            if bid_amount < min_next_bid:
+                return "Bid below minimum"
+            player = self._find_player(decision.get("player_id"))
+            if player is None:
+                return "Unknown bidder"
+            if player.cash < bid_amount:
+                return "Insufficient cash for bid"
+            current_bidder = None
+            if self.state.auction.active_bidders_player_ids:
+                idx = self.state.auction.current_bidder_index
+                if 0 <= idx < len(self.state.auction.active_bidders_player_ids):
+                    current_bidder = self.state.auction.active_bidders_player_ids[idx]
+            if current_bidder and current_bidder != decision.get("player_id"):
+                return "Not current bidder"
+        if action.get("action") == "drop_out":
+            if self.state.auction is None:
+                return "No active auction"
+        if action.get("action") == "propose_trade":
+            if self.state.trade is not None:
+                return "Trade already active"
+            args = action.get("args")
+            if not isinstance(args, dict):
+                return "Missing trade args"
+            if "to_player_id" not in args or "offer" not in args or "request" not in args:
+                return "Missing trade fields"
+        if action.get("action") == "counter_trade":
+            if self.state.trade is None:
+                return "No active trade"
+            args = action.get("args")
+            if not isinstance(args, dict):
+                return "Missing trade args"
+            if "offer" not in args or "request" not in args:
+                return "Missing trade fields"
+        if action.get("action") in {"accept_trade", "reject_trade"}:
+            if self.state.trade is None:
+                return "No active trade"
         return None
 
     def _build_event(

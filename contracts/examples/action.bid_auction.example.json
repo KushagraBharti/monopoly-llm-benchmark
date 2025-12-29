@@ -1,0 +1,8 @@
+{
+  "schema_version": "v1",
+  "decision_id": "dec_auction_001",
+  "action": "bid_auction",
+  "args": { "bid_amount": 111 },
+  "public_message": "Bidding 111.",
+  "private_thought": "Take the lead."
+}

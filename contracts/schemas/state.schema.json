@@ -176,6 +176,128 @@
         }
       }
     },
+    "auction": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "property_space_key",
+        "current_high_bid",
+        "current_leader_player_id",
+        "active_bidders_player_ids",
+        "current_bidder_player_id",
+        "initiator_player_id"
+      ],
+      "properties": {
+        "property_space_key": {
+          "type": "string"
+        },
+        "current_high_bid": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "current_leader_player_id": {
+          "type": ["string", "null"]
+        },
+        "active_bidders_player_ids": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "current_bidder_player_id": {
+          "type": ["string", "null"]
+        },
+        "initiator_player_id": {
+          "type": "string"
+        }
+      }
+    },
+    "trade": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "initiator_player_id",
+        "counterparty_player_id",
+        "max_exchanges",
+        "exchange_index",
+        "history_last_2",
+        "current_offer"
+      ],
+      "properties": {
+        "initiator_player_id": { "type": "string" },
+        "counterparty_player_id": { "type": "string" },
+        "max_exchanges": { "type": "integer", "minimum": 1 },
+        "exchange_index": { "type": "integer", "minimum": 0 },
+        "history_last_2": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from_player_id", "offer", "request"],
+            "properties": {
+              "from_player_id": { "type": "string" },
+              "offer": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["cash", "properties", "get_out_of_jail_cards"],
+                "properties": {
+                  "cash": { "type": "integer", "minimum": 0 },
+                  "properties": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "get_out_of_jail_cards": { "type": "integer", "minimum": 0 }
+                }
+              },
+              "request": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["cash", "properties", "get_out_of_jail_cards"],
+                "properties": {
+                  "cash": { "type": "integer", "minimum": 0 },
+                  "properties": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "get_out_of_jail_cards": { "type": "integer", "minimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        "current_offer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["offer", "request"],
+          "properties": {
+            "offer": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cash", "properties", "get_out_of_jail_cards"],
+              "properties": {
+                "cash": { "type": "integer", "minimum": 0 },
+                "properties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "get_out_of_jail_cards": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "request": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cash", "properties", "get_out_of_jail_cards"],
+              "properties": {
+                "cash": { "type": "integer", "minimum": 0 },
+                "properties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "get_out_of_jail_cards": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
     "derived": {
       "type": "object",
       "additionalProperties": false,

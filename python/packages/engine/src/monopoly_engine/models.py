@@ -76,6 +76,89 @@ class BankState:
 
 
 @dataclass(slots=True)
+class AuctionState:
+    property_space_key: str
+    property_space_index: int
+    current_high_bid: int
+    current_leader_player_id: str | None
+    active_bidders_player_ids: list[str]
+    current_bidder_index: int
+    initiator_player_id: str
+    turn_owner_player_id: str
+    rolled_double: bool
+
+    def to_snapshot(self) -> dict[str, Any]:
+        current_bidder = None
+        if self.active_bidders_player_ids:
+            if 0 <= self.current_bidder_index < len(self.active_bidders_player_ids):
+                current_bidder = self.active_bidders_player_ids[self.current_bidder_index]
+            else:
+                current_bidder = self.active_bidders_player_ids[0]
+        return {
+            "property_space_key": self.property_space_key,
+            "current_high_bid": self.current_high_bid,
+            "current_leader_player_id": self.current_leader_player_id,
+            "active_bidders_player_ids": list(self.active_bidders_player_ids),
+            "current_bidder_player_id": current_bidder,
+            "initiator_player_id": self.initiator_player_id,
+        }
+
+
+@dataclass(slots=True)
+class TradeBundle:
+    cash: int
+    properties: list[str]
+    get_out_of_jail_cards: int
+
+    def to_snapshot(self) -> dict[str, Any]:
+        return {
+            "cash": int(self.cash),
+            "properties": list(self.properties),
+            "get_out_of_jail_cards": int(self.get_out_of_jail_cards),
+        }
+
+
+@dataclass(slots=True)
+class TradeExchange:
+    from_player_id: str
+    offer: TradeBundle
+    request: TradeBundle
+
+    def to_snapshot(self) -> dict[str, Any]:
+        return {
+            "from_player_id": self.from_player_id,
+            "offer": self.offer.to_snapshot(),
+            "request": self.request.to_snapshot(),
+        }
+
+
+@dataclass(slots=True)
+class TradeThread:
+    initiator_player_id: str
+    counterparty_player_id: str
+    max_exchanges: int
+    exchange_index: int
+    history: list[TradeExchange]
+    current_offer: TradeExchange
+    turn_owner_player_id: str
+    rolled_double: bool
+
+    def to_snapshot(self) -> dict[str, Any]:
+        history_slice = self.history[-2:]
+        return {
+            "initiator_player_id": self.initiator_player_id,
+            "counterparty_player_id": self.counterparty_player_id,
+            "max_exchanges": self.max_exchanges,
+            "exchange_index": self.exchange_index,
+            "history_last_2": [entry.to_snapshot() for entry in history_slice],
+            "current_offer": {
+                "offer": self.current_offer.offer.to_snapshot(),
+                "request": self.current_offer.request.to_snapshot(),
+            },
+        }
+
+
+@dataclass(slots=True)
 class GameState:
     run_id: str
     seed: int
@@ -85,6 +168,8 @@ class GameState:
     players: list[PlayerState]
     bank: BankState
     board: list[SpaceState]
+    auction: AuctionState | None = None
+    trade: TradeThread | None = None
 
     def to_snapshot(self) -> dict[str, Any]:
         return {
@@ -96,4 +181,6 @@ class GameState:
             "players": [player.to_snapshot() for player in self.players],
             "bank": self.bank.to_snapshot(),
             "board": [space.to_snapshot() for space in self.board],
+            "auction": self.auction.to_snapshot() if self.auction is not None else None,
+            "trade": self.trade.to_snapshot() if self.trade is not None else None,
         }

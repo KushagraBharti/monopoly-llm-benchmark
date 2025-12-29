@@ -7,6 +7,16 @@ export type EventType =
   | "PLAYER_MOVED"
   | "CASH_CHANGED"
   | "PROPERTY_PURCHASED"
+  | "PROPERTY_TRANSFERRED"
+  | "AUCTION_STARTED"
+  | "AUCTION_BID_PLACED"
+  | "AUCTION_PLAYER_DROPPED"
+  | "AUCTION_ENDED"
+  | "TRADE_PROPOSED"
+  | "TRADE_COUNTERED"
+  | "TRADE_ACCEPTED"
+  | "TRADE_REJECTED"
+  | "TRADE_EXPIRED"
   | "RENT_PAID"
   | "SENT_TO_JAIL"
   | "CARD_DRAWN"
@@ -87,6 +97,92 @@ export interface PropertyPurchasedEvent extends BaseEvent {
     space_index: number;
     price: number;
   };
+}
+
+export interface PropertyTransferredEvent extends BaseEvent {
+  type: "PROPERTY_TRANSFERRED";
+  payload: {
+    from_player_id: string | null;
+    to_player_id: string | null;
+    space_index: number;
+    mortgaged: boolean;
+  };
+}
+
+export interface AuctionStartedEvent extends BaseEvent {
+  type: "AUCTION_STARTED";
+  payload: {
+    property_space: string;
+    initiator_player_id: string;
+  };
+}
+
+export interface AuctionBidPlacedEvent extends BaseEvent {
+  type: "AUCTION_BID_PLACED";
+  payload: {
+    property_space: string;
+    bidder_player_id: string;
+    bid_amount: number;
+  };
+}
+
+export interface AuctionPlayerDroppedEvent extends BaseEvent {
+  type: "AUCTION_PLAYER_DROPPED";
+  payload: {
+    property_space: string;
+    player_id: string;
+  };
+}
+
+export interface AuctionEndedEvent extends BaseEvent {
+  type: "AUCTION_ENDED";
+  payload: {
+    property_space: string;
+    winner_player_id: string | null;
+    winning_bid: number | null;
+    reason: "SOLD" | "NO_BIDS";
+  };
+}
+
+export type TradeBundle = {
+  cash: number;
+  properties: string[];
+  get_out_of_jail_cards: number;
+};
+
+export interface TradePayload extends Record<string, unknown> {
+  initiator_player_id: string;
+  counterparty_player_id: string;
+  exchange_index: number;
+  max_exchanges: number;
+  offer: TradeBundle;
+  request: TradeBundle;
+  reason?: string;
+}
+
+export interface TradeProposedEvent extends BaseEvent {
+  type: "TRADE_PROPOSED";
+  payload: TradePayload;
+}
+
+export interface TradeCounteredEvent extends BaseEvent {
+  type: "TRADE_COUNTERED";
+  payload: TradePayload;
+}
+
+export interface TradeAcceptedEvent extends BaseEvent {
+  type: "TRADE_ACCEPTED";
+  payload: TradePayload;
+}
+
+export interface TradeRejectedEvent extends BaseEvent {
+  type: "TRADE_REJECTED";
+  payload: TradePayload;
+}
+
+export interface TradeExpiredEvent extends BaseEvent {
+  type: "TRADE_EXPIRED";
+  payload: TradePayload;
 }
 
 export interface RentPaidEvent extends BaseEvent {
@@ -227,6 +323,16 @@ export type Event =
   | PlayerMovedEvent
   | CashChangedEvent
   | PropertyPurchasedEvent
+  | PropertyTransferredEvent
+  | AuctionStartedEvent
+  | AuctionBidPlacedEvent
+  | AuctionPlayerDroppedEvent
+  | AuctionEndedEvent
+  | TradeProposedEvent
+  | TradeCounteredEvent
+  | TradeAcceptedEvent
+  | TradeRejectedEvent
+  | TradeExpiredEvent
   | RentPaidEvent
   | SentToJailEvent
   | CardDrawnEvent

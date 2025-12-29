@@ -62,8 +62,14 @@ const SYSTEM_EVENT_TYPES = new Set<string>([
   'TURN_STARTED',
   'TURN_ENDED',
   'PROPERTY_PURCHASED',
+  'PROPERTY_TRANSFERRED',
   'RENT_PAID',
   'SENT_TO_JAIL',
+  'TRADE_PROPOSED',
+  'TRADE_COUNTERED',
+  'TRADE_ACCEPTED',
+  'TRADE_REJECTED',
+  'TRADE_EXPIRED',
   'GAME_ENDED',
 ]);
 
@@ -223,6 +229,58 @@ const systemMessageForEvent = (
       case 'SENT_TO_JAIL': {
         const player = playerNameById.get(event.payload.player_id) ?? event.payload.player_id;
         return `${player} sent to jail`;
+      }
+      case 'PROPERTY_TRANSFERRED': {
+        const fromId = event.payload.from_player_id;
+        const toId = event.payload.to_player_id;
+        const from = fromId ? playerNameById.get(fromId) ?? fromId : 'Bank';
+        const to = toId ? playerNameById.get(toId) ?? toId : 'Bank';
+        return `${formatSpaceLabel(event.payload.space_index)} transferred from ${from} to ${to}`;
+      }
+      case 'TRADE_PROPOSED': {
+        const initiator =
+          playerNameById.get(event.payload.initiator_player_id) ?? event.payload.initiator_player_id;
+        const counterparty =
+          playerNameById.get(event.payload.counterparty_player_id) ?? event.payload.counterparty_player_id;
+        return `${initiator} proposed a trade with ${counterparty}`;
+      }
+      case 'TRADE_COUNTERED': {
+        const actor = event.actor.player_id ?? event.payload.initiator_player_id;
+        const actorLabel = playerNameById.get(actor) ?? actor;
+        const other =
+          actor === event.payload.initiator_player_id
+            ? event.payload.counterparty_player_id
+            : event.payload.initiator_player_id;
+        const otherLabel = playerNameById.get(other) ?? other;
+        return `${actorLabel} countered the trade with ${otherLabel}`;
+      }
+      case 'TRADE_ACCEPTED': {
+        const actor = event.actor.player_id ?? event.payload.counterparty_player_id;
+        const actorLabel = playerNameById.get(actor) ?? actor;
+        const other =
+          actor === event.payload.initiator_player_id
+            ? event.payload.counterparty_player_id
+            : event.payload.initiator_player_id;
+        const otherLabel = playerNameById.get(other) ?? other;
+        return `${actorLabel} accepted the trade with ${otherLabel}`;
+      }
+      case 'TRADE_REJECTED': {
+        const actor = event.actor.player_id ?? event.payload.counterparty_player_id;
+        const actorLabel = playerNameById.get(actor) ?? actor;
+        const other =
+          actor === event.payload.initiator_player_id
+            ? event.payload.counterparty_player_id
+            : event.payload.initiator_player_id;
+        const otherLabel = playerNameById.get(other) ?? other;
+        return `${actorLabel} rejected the trade with ${otherLabel}`;
+      }
+      case 'TRADE_EXPIRED': {
+        const initiator =
+          playerNameById.get(event.payload.initiator_player_id) ?? event.payload.initiator_player_id;
+        const counterparty =
+          playerNameById.get(event.payload.counterparty_player_id) ?? event.payload.counterparty_player_id;
+        const reason = event.payload.reason ? ` (${event.payload.reason})` : '';
+        return `Trade expired between ${initiator} and ${counterparty}${reason}`;
       }
       case 'GAME_ENDED': {
         const winner = playerNameById.get(event.payload.winner_player_id) ?? event.payload.winner_player_id;

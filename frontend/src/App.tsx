@@ -36,8 +36,8 @@ function App() {
     return 'IDLE';
   }, [runStatus.running, runStatus.paused, runStatus.runId]);
 
-  const showAuction = false;
-  const showTrade = false;
+  const showAuction = Boolean(snapshot?.auction);
+  const showTrade = Boolean(snapshot?.trade);
 
   useEffect(() => {
     const client = new WsClient(getWsUrl(), {
@@ -253,6 +253,8 @@ const getHighlightIndices = (event: Event): number[] => {
       return indices;
     }
     case 'PROPERTY_PURCHASED':
+      return [event.payload.space_index];
+    case 'PROPERTY_TRANSFERRED':
       return [event.payload.space_index];
     case 'RENT_PAID':
       return [event.payload.space_index];

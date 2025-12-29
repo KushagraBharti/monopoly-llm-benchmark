@@ -78,6 +78,47 @@ def _tool_call_response(name: str, args: dict[str, Any]) -> OpenRouterResult:
 def _choose_buy_if_legal(decision: dict[str, Any], focus: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     legal = {entry.get("action") for entry in decision.get("legal_actions", [])}
     decision_type = decision.get("decision_type")
+    if decision_type == "AUCTION_BID_DECISION":
+        auction = decision.get("state", {}).get("auction", {})
+        current_high_bid = int(auction.get("current_high_bid", 0) or 0)
+        min_next_bid = current_high_bid + 1
+        player_cash = None
+        for player in decision.get("state", {}).get("players", []):
+            if player.get("player_id") == decision.get("player_id"):
+                player_cash = int(player.get("cash", 0))
+                break
+        if "bid_auction" in legal and player_cash is not None and player_cash >= min_next_bid:
+            return "bid_auction", {"bid_amount": min_next_bid}
+        if "drop_out" in legal:
+            return "drop_out", {}
+    if decision_type == "TRADE_RESPONSE_DECISION":
+        if "reject_trade" in legal:
+            return "reject_trade", {}
+        if "accept_trade" in legal:
+            return "accept_trade", {}
+        if "counter_trade" in legal:
+            return "counter_trade", {
+                "offer": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+                "request": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+            }
+    if decision_type == "TRADE_PROPOSE_DECISION":
+        if "propose_trade" in legal:
+            players = decision.get("state", {}).get("players", [])
+            actor_id = decision.get("player_id")
+            target_id = next(
+                (
+                    entry.get("player_id")
+                    for entry in players
+                    if entry.get("player_id") != actor_id and not entry.get("bankrupt")
+                ),
+                None,
+            )
+            if target_id:
+                return "propose_trade", {
+                    "to_player_id": target_id,
+                    "offer": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+                    "request": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+                }
     if decision_type == "POST_TURN_ACTION_DECISION":
         if "end_turn" in legal:
             return "end_turn", {}

@@ -61,3 +61,27 @@ def test_action_validation_accepts_valid_action() -> None:
     ok, errors = validate_action_payload(action)
     assert ok is True
     assert errors == []
+
+
+def test_action_validation_accepts_bid_auction() -> None:
+    action = {
+        "schema_version": "v1",
+        "decision_id": "dec-6",
+        "action": "bid_auction",
+        "args": {"bid_amount": 25},
+    }
+    ok, errors = validate_action_payload(action)
+    assert ok is True
+    assert errors == []
+
+
+def test_action_validation_accepts_drop_out() -> None:
+    action = {
+        "schema_version": "v1",
+        "decision_id": "dec-7",
+        "action": "drop_out",
+        "args": {},
+    }
+    ok, errors = validate_action_payload(action)
+    assert ok is True
+    assert errors == []

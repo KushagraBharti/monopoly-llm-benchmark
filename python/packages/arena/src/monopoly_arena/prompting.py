@@ -11,6 +11,7 @@ from monopoly_engine.board import (
     HOUSE_COST_BY_GROUP,
     PROPERTY_RENT_TABLES,
     RAILROAD_RENTS,
+    SPACE_INDEX_BY_KEY,
     SPACE_KEY_BY_INDEX,
     UTILITY_RENT_MULTIPLIER,
 )
@@ -164,8 +165,6 @@ def build_full_state(
     if len(players) != 4:
         raise ValueError("Exactly 4 players are required for LLM prompts.")
     active_player_id = snapshot.get("active_player_id")
-    if active_player_id and you_player_id and active_player_id != you_player_id:
-        raise ValueError("Prompt player_id must match active_player_id.")
     board = snapshot.get("board", [])
     player_lookup = {player.get("player_id"): player for player in players}
     you_player = player_lookup.get(you_player_id) or player_lookup.get(snapshot.get("active_player_id"))
@@ -288,6 +287,12 @@ def _describe_action(action_name: str) -> str:
     descriptions = {
         "buy_property": "Buy the property at the current space.",
         "start_auction": "Decline purchase and start an auction for the current space.",
+        "bid_auction": "Place a bid in the current auction.",
+        "drop_out": "Drop out of the current auction.",
+        "propose_trade": "Propose a trade to another player.",
+        "accept_trade": "Accept the current trade offer.",
+        "reject_trade": "Reject the current trade offer.",
+        "counter_trade": "Counter the current trade offer.",
         "ROLL_DICE": "Roll the dice to start your move.",
         "roll_for_doubles": "Roll for doubles to attempt to leave jail.",
         "pay_jail_fine": "Pay the jail fine to leave jail.",
@@ -318,8 +323,12 @@ def build_decision_focus(
         return build_post_turn_action_decision_focus(decision, space_key_by_index=space_key_by_index)
     if decision_type == "LIQUIDATION_DECISION":
         return build_liquidation_decision_focus(decision, space_key_by_index=space_key_by_index)
-    if decision_type == "AUCTION_BID":
-        return build_auction_bid_focus(decision, space_key_by_index=space_key_by_index)
+    if decision_type == "AUCTION_BID_DECISION":
+        return build_auction_bid_decision_focus(decision, space_key_by_index=space_key_by_index)
+    if decision_type == "TRADE_PROPOSE_DECISION":
+        return build_trade_propose_decision_focus(decision)
+    if decision_type == "TRADE_RESPONSE_DECISION":
+        return build_trade_response_decision_focus(decision)
     if decision_type == "TRADE_RESPONSE":
         return build_trade_negotiation_focus(decision)
     return {
@@ -431,6 +440,12 @@ def build_jail_decision_focus(
 
 
 def _tool_requires(action_name: str) -> list[str]:
+    if action_name == "propose_trade":
+        return ["to_player_id", "offer", "request", "public_message", "private_thought"]
+    if action_name == "counter_trade":
+        return ["offer", "request", "public_message", "private_thought"]
+    if action_name in {"accept_trade", "reject_trade"}:
+        return ["public_message", "private_thought"]
     if action_name in {"mortgage_property", "unmortgage_property"}:
         return ["space_key", "public_message", "private_thought"]
     if action_name == "build_houses_or_hotel":
@@ -553,24 +568,157 @@ def build_liquidation_decision_focus(
     }
 
 
-def build_auction_bid_focus(
+def build_auction_bid_decision_focus(
     decision: dict[str, Any],
     *,
     space_key_by_index: dict[int, str],
 ) -> dict[str, Any]:
-    auction = decision.get("auction", {})
-    space_index = auction.get("space_index")
+    state = decision.get("state", {})
+    auction = state.get("auction", {}) if isinstance(state, dict) else {}
+    property_space_key = auction.get("property_space_key")
+    group = None
+    if property_space_key:
+        space_index = SPACE_INDEX_BY_KEY.get(property_space_key)
+        if space_index is not None:
+            board = state.get("board", [])
+            space = next((entry for entry in board if entry.get("index") == space_index), None)
+            if space:
+                group = space.get("group")
+    current_high_bid = int(auction.get("current_high_bid", 0) or 0)
+    min_next_bid = current_high_bid + 1
+    active_bidders = list(auction.get("active_bidders_player_ids", []))
+    leader_id = auction.get("current_leader_player_id")
+
+    tools: list[dict[str, Any]] = []
+    for entry in decision.get("legal_actions", []):
+        action_name = entry.get("action")
+        if action_name == "bid_auction":
+            tools.append(
+                {
+                    "tool_name": "bid_auction",
+                    "requires": ["bid_amount", "public_message", "private_thought"],
+                }
+            )
+        elif action_name == "drop_out":
+            tools.append(
+                {
+                    "tool_name": "drop_out",
+                    "requires": ["public_message", "private_thought"],
+                    "args": {},
+                }
+            )
+
     focus: dict[str, Any] = {
         "schema_version": PROMPT_SCHEMA_VERSION,
-        "focus_type": "AUCTION_BID_DECISION_FOCUS",
+        "decision_id": decision.get("decision_id"),
+        "decision_type": decision.get("decision_type"),
+        "actor_player_id": decision.get("player_id"),
+        "scenario": {
+            "property_space": property_space_key,
+            "group": group,
+            "current_high_bid": current_high_bid,
+            "current_leader_player_id": leader_id,
+            "min_next_bid": min_next_bid,
+            "active_bidders_player_ids": active_bidders,
+        },
+        "legal_tools": tools,
     }
-    if space_index is not None:
-        focus["space_key"] = space_key_for_index(int(space_index), space_key_by_index)
-        focus["space_index"] = space_index
-    for field in ("current_bid", "min_bid_increment", "high_bidder_player_id"):
-        if field in auction:
-            focus[field] = auction.get(field)
     return focus
+
+
+def build_trade_propose_decision_focus(decision: dict[str, Any]) -> dict[str, Any]:
+    state = decision.get("state", {})
+    players = state.get("players", [])
+    actor_id = decision.get("player_id")
+    eligible = [
+        player.get("player_id")
+        for player in players
+        if player.get("player_id") != actor_id and not player.get("bankrupt")
+    ]
+    tools: list[dict[str, Any]] = []
+    for entry in decision.get("legal_actions", []):
+        if entry.get("action") != "propose_trade":
+            continue
+        tools.append(
+            {
+                "tool_name": "propose_trade",
+                "requires": ["to_player_id", "offer", "request", "public_message", "private_thought"],
+            }
+        )
+    return {
+        "schema_version": PROMPT_SCHEMA_VERSION,
+        "decision_id": decision.get("decision_id"),
+        "decision_type": decision.get("decision_type"),
+        "actor_player_id": actor_id,
+        "scenario": {
+            "max_exchanges": 5,
+            "eligible_counterparties_player_ids": eligible,
+        },
+        "legal_tools": tools,
+    }
+
+
+def build_trade_response_decision_focus(decision: dict[str, Any]) -> dict[str, Any]:
+    state = decision.get("state", {})
+    trade = state.get("trade", {}) if isinstance(state, dict) else {}
+    actor_id = decision.get("player_id")
+    initiator = trade.get("initiator_player_id")
+    counterparty = trade.get("counterparty_player_id")
+    counterparty_id = (
+        counterparty if actor_id == initiator else initiator if initiator else counterparty
+    )
+    history: list[dict[str, Any]] = []
+    for entry in trade.get("history_last_2", []):
+        if not isinstance(entry, dict):
+            continue
+        history.append(
+            {
+                "from_player_id": entry.get("from_player_id"),
+                "offer": {},
+                "request": {},
+            }
+        )
+    current_offer = {"offer": {}, "request": {}}
+    tools: list[dict[str, Any]] = []
+    for entry in decision.get("legal_actions", []):
+        action_name = entry.get("action")
+        if action_name == "accept_trade":
+            tools.append(
+                {
+                    "tool_name": "accept_trade",
+                    "requires": ["public_message", "private_thought"],
+                    "args": {},
+                }
+            )
+        elif action_name == "reject_trade":
+            tools.append(
+                {
+                    "tool_name": "reject_trade",
+                    "requires": ["public_message", "private_thought"],
+                    "args": {},
+                }
+            )
+        elif action_name == "counter_trade":
+            tools.append(
+                {
+                    "tool_name": "counter_trade",
+                    "requires": ["offer", "request", "public_message", "private_thought"],
+                }
+            )
+    return {
+        "schema_version": PROMPT_SCHEMA_VERSION,
+        "decision_id": decision.get("decision_id"),
+        "decision_type": decision.get("decision_type"),
+        "actor_player_id": actor_id,
+        "scenario": {
+            "max_exchanges": trade.get("max_exchanges"),
+            "exchange_index": trade.get("exchange_index"),
+            "counterparty_player_id": counterparty_id,
+            "history_last_2": history,
+            "current_offer": current_offer,
+        },
+        "legal_tools": tools,
+    }
 
 
 def build_trade_negotiation_focus(decision: dict[str, Any]) -> dict[str, Any]:

@@ -82,7 +82,7 @@ def test_buy_decision_and_purchase() -> None:
     )
 
 
-def test_start_auction_placeholder() -> None:
+def test_start_auction_starts_bid_round() -> None:
     players = [
         {"player_id": "p1", "name": "P1"},
         {"player_id": "p2", "name": "P2"},
@@ -107,10 +107,12 @@ def test_start_auction_placeholder() -> None:
     _, action_events, new_decision, _ = engine.apply_action(action)
 
     assert engine.state.board[target_index].owner_id is None
+    assert engine.state.auction is not None
+    assert any(event["type"] == "AUCTION_STARTED" for event in action_events)
     assert any(event["type"] == "LLM_DECISION_RESPONSE" for event in action_events)
     assert any(event["type"] == "LLM_DECISION_REQUESTED" for event in action_events)
     assert new_decision is not None
-    assert new_decision["decision_type"] == "POST_TURN_ACTION_DECISION"
+    assert new_decision["decision_type"] == "AUCTION_BID_DECISION"
     assert all(event["type"] != "PROPERTY_PURCHASED" for event in action_events)
 
 

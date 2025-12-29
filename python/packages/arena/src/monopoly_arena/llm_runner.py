@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, AsyncIterable, Awaitable, Callable
 
 from monopoly_engine import Engine
-from monopoly_telemetry import RunFiles
+from monopoly_telemetry import RunFiles, build_summary
 
 from .openrouter_client import OpenRouterClient, OpenRouterResult
 
@@ -124,20 +124,42 @@ class LlmRunner:
         on_summary: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
         on_decision: DecisionCallback | None = None,
     ) -> None:
+        event_handler = on_event
+        snapshot_handler = on_snapshot
+        summary_handler = on_summary
+        if self._run_files is not None:
+            if event_handler is None:
+                async def _write_event(event: dict[str, Any]) -> None:
+                    self._run_files.write_event(event)
+
+                event_handler = _write_event
+            if snapshot_handler is None:
+                async def _write_snapshot(snapshot: dict[str, Any]) -> None:
+                    self._run_files.write_snapshot(snapshot)
+
+                snapshot_handler = _write_snapshot
+            if summary_handler is None:
+                async def _write_summary(summary: dict[str, Any]) -> None:
+                    self._run_files.write_summary(summary)
+
+                summary_handler = _write_summary
         try:
             async for event in self._event_stream(on_decision=on_decision):
-                if on_event is not None:
-                    await on_event(event)
-                if on_snapshot is not None and event["type"] in {
+                if event_handler is not None:
+                    await event_handler(event)
+                if snapshot_handler is not None and event["type"] in {
                     "LLM_DECISION_REQUESTED",
                     "TURN_ENDED",
                     "GAME_ENDED",
                 }:
-                    await on_snapshot(self.get_snapshot())
-                if self._event_delay_s > 0:
-                    await asyncio.sleep(self._event_delay_s)
-            if on_summary is not None:
-                await on_summary(self._engine.build_summary())
+                    await snapshot_handler(self.get_snapshot())
+            if self._event_delay_s > 0:
+                await asyncio.sleep(self._event_delay_s)
+            if summary_handler is not None:
+                if self._run_files is not None:
+                    await summary_handler(build_summary(self._run_files))
+                else:
+                    await summary_handler(self._engine.build_summary())
         finally:
             await self._close_openrouter()
 
@@ -175,6 +197,16 @@ class LlmRunner:
                     outcome.action,
                     decision_meta=outcome.decision_meta,
                 )
+                if self._run_files is not None:
+                    self._run_files.write_action(
+                        {
+                            "decision_id": decision["decision_id"],
+                            "actor_player_id": decision["player_id"],
+                            "decision_type": decision["decision_type"],
+                            "turn_index": decision["turn_index"],
+                            "action": outcome.action,
+                        }
+                    )
                 player_config = self._player_configs[decision["player_id"]]
                 resolved_entry = self._build_decision_log_entry(
                     decision=decision,
@@ -674,6 +706,79 @@ class LlmRunner:
         post_options = post_turn.get("options", {}) if isinstance(post_turn, dict) else {}
         liquidation = decision.get("liquidation", {})
         liq_options = liquidation.get("options", {}) if isinstance(liquidation, dict) else {}
+
+        if decision.get("decision_type") == "AUCTION_BID_DECISION":
+            auction = decision.get("state", {}).get("auction", {})
+            current_high_bid = int(auction.get("current_high_bid", 0) or 0)
+            min_next_bid = current_high_bid + 1
+            player_cash = None
+            for player in decision.get("state", {}).get("players", []):
+                if player.get("player_id") == decision.get("player_id"):
+                    player_cash = int(player.get("cash", 0))
+                    break
+            if "bid_auction" in legal_actions and player_cash is not None and player_cash >= min_next_bid:
+                action_name = "bid_auction"
+                args = {"bid_amount": min_next_bid}
+            elif "drop_out" in legal_actions:
+                action_name = "drop_out"
+                args = {}
+            elif legal_actions:
+                action_name = legal_actions[0]
+                args = {}
+            else:
+                action_name = "NOOP"
+                args = {"reason": "fallback"}
+            return {
+                "schema_version": "v1",
+                "decision_id": decision_id,
+                "action": action_name,
+                "args": args,
+            }
+        if decision.get("decision_type") == "TRADE_RESPONSE_DECISION":
+            if "reject_trade" in legal_actions:
+                return {
+                    "schema_version": "v1",
+                    "decision_id": decision_id,
+                    "action": "reject_trade",
+                    "args": {},
+                }
+            if "accept_trade" in legal_actions:
+                return {
+                    "schema_version": "v1",
+                    "decision_id": decision_id,
+                    "action": "accept_trade",
+                    "args": {},
+                }
+            if "counter_trade" in legal_actions:
+                return {
+                    "schema_version": "v1",
+                    "decision_id": decision_id,
+                    "action": "counter_trade",
+                    "args": {
+                        "offer": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+                        "request": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+                    },
+                }
+        if decision.get("decision_type") == "TRADE_PROPOSE_DECISION":
+            if "propose_trade" in legal_actions:
+                players = decision.get("state", {}).get("players", [])
+                actor_id = decision.get("player_id")
+                target_id = None
+                for entry in players:
+                    if entry.get("player_id") != actor_id and not entry.get("bankrupt"):
+                        target_id = entry.get("player_id")
+                        break
+                if target_id:
+                    return {
+                        "schema_version": "v1",
+                        "decision_id": decision_id,
+                        "action": "propose_trade",
+                        "args": {
+                            "to_player_id": target_id,
+                            "offer": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+                            "request": {"cash": 0, "properties": [], "get_out_of_jail_cards": 0},
+                        },
+                    }
 
         def build_plan_args(indices: list[int] | None) -> dict[str, Any] | None:
             if not indices:

@@ -96,6 +96,26 @@ export const normalizeGroupKey = (group: string | null | undefined): GroupKey | 
   return null;
 };
 
+export const normalizeSpaceKey = (name: string): string => {
+  return name.trim().replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
+};
+
+export const SPACE_KEY_BY_INDEX: Record<number, string> = BOARD_TILES.reduce(
+  (acc, tile) => {
+    acc[tile.index] = normalizeSpaceKey(tile.name);
+    return acc;
+  },
+  {} as Record<number, string>
+);
+
+export const SPACE_INDEX_BY_KEY: Record<string, number> = Object.entries(SPACE_KEY_BY_INDEX).reduce(
+  (acc, [index, key]) => {
+    acc[key] = Number(index);
+    return acc;
+  },
+  {} as Record<string, number>
+);
+
 export const getSpaceName = (index: number): string => {
   return BOARD_TILES_BY_INDEX[index]?.name ?? `Space ${index}`;
 };

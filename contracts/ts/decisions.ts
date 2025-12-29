@@ -7,7 +7,9 @@ export type DecisionType =
   | "BUY_OR_AUCTION_DECISION"
   | "POST_TURN_ACTION_DECISION"
   | "LIQUIDATION_DECISION"
-  | "AUCTION_BID"
+  | "AUCTION_BID_DECISION"
+  | "TRADE_PROPOSE_DECISION"
+  | "TRADE_RESPONSE_DECISION"
   | "END_TURN"
   | "TRADE_RESPONSE";
 
@@ -52,6 +54,63 @@ export interface SpaceKeyArgsSchema {
     space_key: {
       type: "string";
     };
+  };
+}
+
+export interface BidAmountArgsSchema {
+  type: "object";
+  additionalProperties: false;
+  required: ["bid_amount"];
+  properties: {
+    bid_amount: {
+      type: "integer";
+      minimum: 0;
+    };
+  };
+}
+
+export interface TradeBundleSchema {
+  type: "object";
+  additionalProperties: false;
+  required: ["cash", "properties", "get_out_of_jail_cards"];
+  properties: {
+    cash: {
+      type: "integer";
+      minimum: 0;
+    };
+    properties: {
+      type: "array";
+      items: {
+        type: "string";
+      };
+    };
+    get_out_of_jail_cards: {
+      type: "integer";
+      minimum: 0;
+    };
+  };
+}
+
+export interface ProposeTradeArgsSchema {
+  type: "object";
+  additionalProperties: false;
+  required: ["to_player_id", "offer", "request"];
+  properties: {
+    to_player_id: {
+      type: "string";
+    };
+    offer: TradeBundleSchema;
+    request: TradeBundleSchema;
+  };
+}
+
+export interface CounterTradeArgsSchema {
+  type: "object";
+  additionalProperties: false;
+  required: ["offer", "request"];
+  properties: {
+    offer: TradeBundleSchema;
+    request: TradeBundleSchema;
   };
 }
 
@@ -119,6 +178,36 @@ export interface StartAuctionLegalAction extends BaseLegalAction {
   args_schema: EmptyArgsSchema;
 }
 
+export interface BidAuctionLegalAction extends BaseLegalAction {
+  action: "bid_auction";
+  args_schema: BidAmountArgsSchema;
+}
+
+export interface DropOutLegalAction extends BaseLegalAction {
+  action: "drop_out";
+  args_schema: EmptyArgsSchema;
+}
+
+export interface ProposeTradeLegalAction extends BaseLegalAction {
+  action: "propose_trade";
+  args_schema: ProposeTradeArgsSchema;
+}
+
+export interface AcceptTradeLegalAction extends BaseLegalAction {
+  action: "accept_trade";
+  args_schema: EmptyArgsSchema;
+}
+
+export interface RejectTradeLegalAction extends BaseLegalAction {
+  action: "reject_trade";
+  args_schema: EmptyArgsSchema;
+}
+
+export interface CounterTradeLegalAction extends BaseLegalAction {
+  action: "counter_trade";
+  args_schema: CounterTradeArgsSchema;
+}
+
 export interface PayJailFineLegalAction extends BaseLegalAction {
   action: "pay_jail_fine";
   args_schema: EmptyArgsSchema;
@@ -173,6 +262,12 @@ export type LegalAction =
   | RollDiceLegalAction
   | BuyPropertyLegalAction
   | StartAuctionLegalAction
+  | BidAuctionLegalAction
+  | DropOutLegalAction
+  | ProposeTradeLegalAction
+  | AcceptTradeLegalAction
+  | RejectTradeLegalAction
+  | CounterTradeLegalAction
   | PayJailFineLegalAction
   | UseJailCardLegalAction
   | RollForDoublesLegalAction

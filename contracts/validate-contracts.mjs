@@ -158,9 +158,12 @@ const jsonExamples = [
   { file: "state.example.json", schema: "state.schema.json" },
   { file: "decision.example.json", schema: "decision.schema.json" },
   { file: "decision.jail.example.json", schema: "decision.schema.json" },
+  { file: "decision.auction.example.json", schema: "decision.schema.json" },
   { file: "decision.post_turn.example.json", schema: "decision.schema.json" },
   { file: "decision.liquidation.example.json", schema: "decision.schema.json" },
-  { file: "action.example.json", schema: "action.schema.json" }
+  { file: "action.example.json", schema: "action.schema.json" },
+  { file: "action.bid_auction.example.json", schema: "action.schema.json" },
+  { file: "action.drop_out.example.json", schema: "action.schema.json" }
 ];
 
 for (const example of jsonExamples) {

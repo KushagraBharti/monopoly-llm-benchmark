@@ -1,0 +1,6 @@
+{
+  "batch_id": "batch-example",
+  "seeds": [101, 202, 303],
+  "matches": 3,
+  "players": "python/apps/api/src/monopoly_api/config/players.json"
+}

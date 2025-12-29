@@ -4,6 +4,12 @@ export type ActionName =
   | "ROLL_DICE"
   | "buy_property"
   | "start_auction"
+  | "bid_auction"
+  | "drop_out"
+  | "propose_trade"
+  | "accept_trade"
+  | "reject_trade"
+  | "counter_trade"
   | "pay_jail_fine"
   | "use_get_out_of_jail_card"
   | "roll_for_doubles"
@@ -17,6 +23,14 @@ export type ActionName =
 
 export type EmptyArgs = Record<string, never>;
 export type SpaceKeyArgs = { space_key: string };
+export type BidAuctionArgs = { bid_amount: number };
+export type TradeBundle = {
+  cash: number;
+  properties: string[];
+  get_out_of_jail_cards: number;
+};
+export type TradeOfferArgs = { offer: TradeBundle; request: TradeBundle };
+export type ProposeTradeArgs = TradeOfferArgs & { to_player_id: string };
 
 export type BuildingKind = "HOUSE" | "HOTEL";
 
@@ -56,6 +70,36 @@ export interface BuyPropertyAction extends BaseAction {
 export interface StartAuctionAction extends BaseAction {
   action: "start_auction";
   args: EmptyArgs;
+}
+
+export interface BidAuctionAction extends BaseAction {
+  action: "bid_auction";
+  args: BidAuctionArgs;
+}
+
+export interface DropOutAction extends BaseAction {
+  action: "drop_out";
+  args: EmptyArgs;
+}
+
+export interface ProposeTradeAction extends BaseAction {
+  action: "propose_trade";
+  args: ProposeTradeArgs;
+}
+
+export interface AcceptTradeAction extends BaseAction {
+  action: "accept_trade";
+  args: EmptyArgs;
+}
+
+export interface RejectTradeAction extends BaseAction {
+  action: "reject_trade";
+  args: EmptyArgs;
+}
+
+export interface CounterTradeAction extends BaseAction {
+  action: "counter_trade";
+  args: TradeOfferArgs;
 }
 
 export interface PayBailAction extends BaseAction {
@@ -112,6 +156,12 @@ export type Action =
   | RollDiceAction
   | BuyPropertyAction
   | StartAuctionAction
+  | BidAuctionAction
+  | DropOutAction
+  | ProposeTradeAction
+  | AcceptTradeAction
+  | RejectTradeAction
+  | CounterTradeAction
   | PayBailAction
   | UseJailCardAction
   | RollForDoublesAction

@@ -100,6 +100,44 @@ class MockRunner:
     @staticmethod
     def _choose_action(decision: dict[str, Any]) -> dict[str, Any]:
         legal_actions = [entry["action"] for entry in decision.get("legal_actions", [])]
+        if decision.get("decision_type") == "AUCTION_BID_DECISION":
+            auction = decision.get("state", {}).get("auction", {})
+            current_high_bid = int(auction.get("current_high_bid", 0) or 0)
+            min_next_bid = current_high_bid + 1
+            player_cash = None
+            for player in decision.get("state", {}).get("players", []):
+                if player.get("player_id") == decision.get("player_id"):
+                    player_cash = int(player.get("cash", 0))
+                    break
+            if "bid_auction" in legal_actions and player_cash is not None and player_cash >= min_next_bid:
+                return {
+                    "schema_version": "v1",
+                    "decision_id": decision["decision_id"],
+                    "action": "bid_auction",
+                    "args": {"bid_amount": min_next_bid},
+                }
+            if "drop_out" in legal_actions:
+                return {
+                    "schema_version": "v1",
+                    "decision_id": decision["decision_id"],
+                    "action": "drop_out",
+                    "args": {},
+                }
+        if decision.get("decision_type") == "TRADE_RESPONSE_DECISION":
+            if "reject_trade" in legal_actions:
+                return {
+                    "schema_version": "v1",
+                    "decision_id": decision["decision_id"],
+                    "action": "reject_trade",
+                    "args": {},
+                }
+            if "accept_trade" in legal_actions:
+                return {
+                    "schema_version": "v1",
+                    "decision_id": decision["decision_id"],
+                    "action": "accept_trade",
+                    "args": {},
+                }
         if "buy_property" in legal_actions:
             action_name = "buy_property"
         elif "start_auction" in legal_actions:

@@ -50,6 +50,156 @@
       "properties": {
         "schema_version": { "type": "string", "const": "v1" },
         "decision_id": { "type": "string" },
+        "action": { "const": "propose_trade" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["to_player_id", "offer", "request"],
+          "properties": {
+            "to_player_id": { "type": "string" },
+            "offer": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cash", "properties", "get_out_of_jail_cards"],
+              "properties": {
+                "cash": { "type": "integer", "minimum": 0 },
+                "properties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "get_out_of_jail_cards": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "request": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cash", "properties", "get_out_of_jail_cards"],
+              "properties": {
+                "cash": { "type": "integer", "minimum": 0 },
+                "properties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "get_out_of_jail_cards": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "accept_trade" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "reject_trade" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "counter_trade" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["offer", "request"],
+          "properties": {
+            "offer": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cash", "properties", "get_out_of_jail_cards"],
+              "properties": {
+                "cash": { "type": "integer", "minimum": 0 },
+                "properties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "get_out_of_jail_cards": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "request": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["cash", "properties", "get_out_of_jail_cards"],
+              "properties": {
+                "cash": { "type": "integer", "minimum": 0 },
+                "properties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "get_out_of_jail_cards": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "bid_auction" },
+        "args": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bid_amount"],
+          "properties": {
+            "bid_amount": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
+        "action": { "const": "drop_out" },
+        "args": { "type": "object", "additionalProperties": false },
+        "public_message": { "type": "string" },
+        "private_thought": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "decision_id", "action", "args"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "v1" },
+        "decision_id": { "type": "string" },
         "action": { "const": "pay_jail_fine" },
         "args": { "type": "object", "additionalProperties": false },
         "public_message": { "type": "string" },

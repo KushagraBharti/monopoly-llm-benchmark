@@ -25,6 +25,39 @@ export interface Bank {
   hotels_remaining: number;
 }
 
+export interface AuctionState {
+  property_space_key: string;
+  current_high_bid: number;
+  current_leader_player_id: string | null;
+  active_bidders_player_ids: string[];
+  current_bidder_player_id: string | null;
+  initiator_player_id: string;
+}
+
+export interface TradeBundle {
+  cash: number;
+  properties: string[];
+  get_out_of_jail_cards: number;
+}
+
+export interface TradeExchange {
+  from_player_id: string;
+  offer: TradeBundle;
+  request: TradeBundle;
+}
+
+export interface TradeState {
+  initiator_player_id: string;
+  counterparty_player_id: string;
+  max_exchanges: number;
+  exchange_index: number;
+  history_last_2: TradeExchange[];
+  current_offer: {
+    offer: TradeBundle;
+    request: TradeBundle;
+  };
+}
+
 export type SpaceKind =
   | "GO"
   | "PROPERTY"
@@ -63,5 +96,7 @@ export interface StateSnapshot {
   players: Player[];
   bank: Bank;
   board: Space[];
+  auction?: AuctionState | null;
+  trade?: TradeState | null;
   derived?: DerivedState;
 }
