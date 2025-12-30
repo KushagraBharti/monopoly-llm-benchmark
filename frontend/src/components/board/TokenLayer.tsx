@@ -34,7 +34,7 @@ export const TokenLayer = () => {
                 let offsetY = 0;
                 if (playersAtPos > 1) {
                     const angle = (indexAtPos / playersAtPos) * 2 * Math.PI;
-                    const radius = 12; // Increased separation
+                    const radius = 14; // Increased separation
                     offsetX = Math.cos(angle) * radius;
                     offsetY = Math.sin(angle) * radius;
                 }
@@ -47,9 +47,9 @@ export const TokenLayer = () => {
                             left: `calc(${x}% + ${offsetX}px)`,
                             top: `calc(${y}% + ${offsetY}px)`,
                             // Scale active player slightly, but no pulsing
-                            scale: isActive ? 1.05 : 1.0,
+                            scale: isActive ? 1.06 : 1.0,
                             zIndex: isActive ? 100 : 50 + indexAtPos,
-                            y: isActive ? -8 : 0, // Lift active player higher
+                            y: isActive ? -10 : 0,
                         }}
                         transition={{
                             type: "spring",
@@ -59,23 +59,23 @@ export const TokenLayer = () => {
                         className="absolute w-0 h-0 flex items-center justify-center"
                     >
                         {/* Shadow blob */}
-                        <div className="absolute w-8 h-3 bg-black/40 rounded-[100%] blur-[2px] translate-y-4 skew-x-12" />
+                        <div className="absolute w-9 h-3 bg-black/35 rounded-[100%] blur-[2px] translate-y-4 skew-x-12" />
 
                         {/* Chip Body - Larger and thicker */}
                         <div
                             className={cn(
-                                "relative w-9 h-9 rounded-full border-[2.5px] bg-white flex items-center justify-center transition-shadow",
-                                isActive ? "ring-4 ring-white shadow-2xl" : ""
+                                "relative w-10 h-10 rounded-full border-[3px] bg-white flex items-center justify-center transition-shadow",
+                                isActive ? "ring-4 ring-neo-yellow ring-offset-2 ring-offset-white" : ""
                             )}
                             style={{
                                 backgroundColor: color,
                                 borderColor: 'black',
                                 boxShadow: isActive
-                                    ? '0px 0px 0px 4px rgba(255,255,255,1), 0px 8px 15px rgba(0,0,0,0.3)'
-                                    : '0px 4px 0px 0px #000'
+                                    ? '0px 0px 0px 2px rgba(0,0,0,0.5), 0px 10px 18px rgba(0,0,0,0.35)'
+                                    : '0px 6px 0px 0px #000'
                             }}
                         >
-                            <span className="font-black text-[11px] text-white drop-shadow-[0_1.5px_0_rgba(0,0,0,1)] select-none uppercase tracking-tighter">
+                            <span className="font-black text-[12px] text-white drop-shadow-[0_1.5px_0_rgba(0,0,0,1)] select-none uppercase tracking-tighter">
                                 {getPlayerInitials(player.player_id, player.name)}
                             </span>
                         </div>

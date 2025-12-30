@@ -9,7 +9,6 @@ interface TileProps {
   highlightSource?: 'deed' | 'event' | 'decision' | null;
 }
 
-// Brutal SVG Icons - Refined
 const TrainIcon = () => (
   <div className="w-8 h-8 flex items-center justify-center bg-black text-white rounded-sm shadow-neo-sm transform -rotate-3">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
@@ -38,15 +37,22 @@ const WaterIcon = () => (
 );
 
 const ChestIcon = () => (
-  <div className="relative w-8 h-6 bg-[#8B4513] border-2 border-black flex items-center justify-center rounded-t-lg shadow-[2px_2px_0_0_rgba(0,0,0,0.5)] transform rotate-[-5deg]">
-    <div className="absolute top-1 w-full h-[1px] bg-black opacity-30"></div>
-    <div className="w-2 h-2 rounded-full bg-[#FFD700] border border-black z-10"></div>
+  <div className="w-8 h-6 flex items-center justify-center">
+    <svg viewBox="0 0 24 18" className="w-8 h-6" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="2" y="6" width="20" height="10" rx="2" />
+      <path d="M2 10h20" />
+      <rect x="10.5" y="9" width="3" height="4" rx="1" fill="currentColor" stroke="none" />
+    </svg>
   </div>
 );
 
 const ChanceIcon = () => (
-  <div className="relative">
-    <span className="font-serif font-black text-5xl text-neo-pink leading-none opacity-100 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">?</span>
+  <div className="w-9 h-9 flex items-center justify-center">
+    <svg viewBox="0 0 24 24" className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9 9a3 3 0 016 0c0 2-3 2-3 4" strokeLinecap="round" />
+      <circle cx="12" cy="18" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
   </div>
 );
 
@@ -57,21 +63,33 @@ const TaxIcon = () => (
   </div>
 );
 
-// Housing Indicators
 const HouseIndicator = () => (
-  <div className="w-3 h-3 bg-neo-green border border-black shadow-[1px_1px_0_0_#000] transform hover:scale-110 transition-transform" title="House">
-    <div className="w-full h-full opacity-0 hover:opacity-100 flex items-center justify-center text-[6px]">🏠</div>
-  </div>
+  <div className="w-3 h-3 bg-neo-green border border-black shadow-[1px_1px_0_0_#000]" title="House" />
 );
 
 const HotelIndicator = () => (
-  <div className="w-6 h-4 bg-neo-red border border-black shadow-[1px_1px_0_0_#000] transform hover:scale-110 transition-transform flex items-center justify-center" title="Hotel">
+  <div className="w-6 h-4 bg-neo-red border border-black shadow-[1px_1px_0_0_#000] flex items-center justify-center" title="Hotel">
     <div className="w-1 h-1 bg-white rounded-full mx-[1px]"></div>
     <div className="w-1 h-1 bg-white rounded-full mx-[1px]"></div>
     <div className="w-1 h-1 bg-white rounded-full mx-[1px]"></div>
   </div>
 );
 
+const FreeParkingIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <path d="M5 13l2-6h10l2 6" />
+    <path d="M7 13h10v4H7z" />
+    <circle cx="8" cy="18" r="1.3" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="18" r="1.3" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const GoToJailIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="5" y="4" width="14" height="16" rx="2" />
+    <path d="M9 4v16M12 4v16M15 4v16" />
+  </svg>
+);
 
 export const Tile = memo(({ space, className, highlightSource = null }: TileProps) => {
   const { name, kind, price, group, owner_id, houses, hotel, mortgaged } = space;
@@ -91,28 +109,26 @@ export const Tile = memo(({ space, className, highlightSource = null }: TileProp
     return getPlayerColor(owner_id);
   }, [owner_id]);
 
-  // Static Highlights - No pulsing
   const highlightClass = highlightSource
     ? highlightSource === 'event'
-      ? 'ring-[4px] ring-neo-yellow ring-offset-2 z-40 scale-[1.02]'
+      ? 'ring-[3px] ring-neo-yellow ring-offset-2 shadow-[0_0_0_2px_rgba(0,0,0,0.35)]'
       : highlightSource === 'deed'
-        ? 'ring-[4px] ring-neo-pink ring-offset-2 z-30 scale-[1.05]'
-        : 'ring-[3px] ring-neo-cyan border-dashed z-30'
+        ? 'ring-[3px] ring-neo-pink ring-offset-2 shadow-[0_0_0_2px_rgba(0,0,0,0.35)]'
+        : 'ring-[2px] ring-neo-cyan ring-offset-2 border-dashed'
     : '';
 
-  // Corner Tiles
   if (space.index % 10 === 0) {
     return (
       <div
         className={cn(
-          "relative w-full h-full border-2 border-neo-border bg-white flex flex-col items-center justify-center text-center select-none overflow-hidden group",
+          'relative w-full h-full border-2 border-neo-border bg-white flex flex-col items-center justify-center text-center select-none overflow-hidden group',
           highlightClass,
           className
         )}
       >
-        {space.index === 0 && ( /* GO */
+        {space.index === 0 && (
           <div className="w-full h-full bg-[#CEE6D0] relative flex items-center justify-center">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,theme(colors.neo-green),transparent)] opacity-20"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,theme(colors.neo-green),transparent)] opacity-15"></div>
             <span className="absolute top-1 left-1 text-[8px] font-black transform -rotate-45 opacity-60">COLLECT<br />$200</span>
             <span className="text-4xl font-black text-neo-black tracking-tighter drop-shadow-[2px_2px_0_rgba(255,255,255,0.5)] transform -rotate-45 relative z-10">GO</span>
             <div className="absolute bottom-0 right-0 w-8 h-8 border-l-2 border-t-2 border-black bg-neo-green hover:bg-neo-green/90 transition-colors">
@@ -120,10 +136,9 @@ export const Tile = memo(({ space, className, highlightSource = null }: TileProp
             </div>
           </div>
         )}
-        {space.index === 10 && ( /* JAIL */
+        {space.index === 10 && (
           <div className="w-full h-full bg-[#F3D2C1] p-1 flex relative">
             <div className="w-2/3 h-full border-2 border-black bg-neo-orange flex items-center justify-center relative shadow-sm overflow-hidden">
-              {/* Prison Bars Pattern */}
               <div className="absolute inset-0 flex justify-evenly">
                 <div className="w-0.5 h-full bg-black"></div>
                 <div className="w-0.5 h-full bg-black"></div>
@@ -140,19 +155,23 @@ export const Tile = memo(({ space, className, highlightSource = null }: TileProp
             </div>
           </div>
         )}
-        {space.index === 20 && ( /* FREE PARKING */
-          <div className="w-full h-full bg-[#FDFD96] flex flex-col items-center justify-center p-1 relative">
+        {space.index === 20 && (
+          <div className="w-full h-full bg-[#FDF3C8] flex flex-col items-center justify-center p-1 relative">
             <div className="absolute top-1 rotate-12 bg-neo-red text-white text-[8px] font-black px-1 border border-black shadow-sm">FREE</div>
-            <div className="mt-2 text-3xl font-black drop-shadow-sm">🚗</div>
+            <div className="mt-2 text-3xl font-black drop-shadow-sm">
+              <FreeParkingIcon />
+            </div>
             <span className="text-[9px] font-bold uppercase mt-1 tracking-tight">Parking</span>
           </div>
         )}
-        {space.index === 30 && ( /* GO TO JAIL */
-          <div className="w-full h-full bg-[#AEC6CFA0] flex flex-col items-center justify-center p-1 relative group-hover:bg-[#AEC6CF] transition-colors">
+        {space.index === 30 && (
+          <div className="w-full h-full bg-[#CFE1EA] flex flex-col items-center justify-center p-1 relative group-hover:bg-[#C6D9E3] transition-colors">
             <span className="text-[9px] font-bold uppercase mb-1">GO TO</span>
             <div className="w-10 h-10 border-2 border-black bg-neo-blue flex items-center justify-center shadow-neo-sm relative overflow-hidden">
               <div className="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(45deg,black,black_1px,transparent_1px,transparent_4px)]"></div>
-              <span className="text-2xl relative z-10">👮</span>
+              <span className="text-2xl relative z-10">
+                <GoToJailIcon />
+              </span>
             </div>
             <span className="text-[9px] font-bold uppercase mt-1">JAIL</span>
           </div>
@@ -161,26 +180,28 @@ export const Tile = memo(({ space, className, highlightSource = null }: TileProp
     );
   }
 
-  // Regular Tiles
+  const bandStyle = hasColorBand
+    ? {
+        backgroundImage: `linear-gradient(180deg, ${groupColor} 0%, ${groupColor} 70%, rgba(0,0,0,0.1) 100%)`,
+      }
+    : undefined;
+
   return (
     <div
       className={cn(
-        'relative flex flex-col border-[1.5px] border-neo-border bg-white h-full w-full select-none overflow-hidden transition-all duration-100',
+        'relative flex flex-col border-[1.5px] border-neo-border bg-[#fbfaf7] h-full w-full select-none overflow-hidden',
         highlightClass,
         className
       )}
     >
-      {/* Header Band */}
       {hasColorBand ? (
         <div
           className={cn(
-            "h-[24%] w-full border-b-[1.5px] border-black relative transition-all",
-            // Add texture to color bands
+            'h-[24%] w-full border-b-[1.5px] border-black relative',
             "after:content-[''] after:absolute after:inset-0 after:bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMSIvPgo8cGF0aCBkPSJNMSAzaDJ2MUgxVjN6bTIgMGgydjFIM1YzeiIgZmlsbD0iIzAwMCIgZmlsbC1vcGFjaXR5PSIwLjEiLz4KPC9zdmc+')] after:opacity-20"
           )}
-          style={{ backgroundColor: groupColor }}
+          style={bandStyle}
         >
-          {/* Housing Indicators */}
           <div className="absolute -bottom-1.5 inset-x-0 flex justify-center gap-0.5 z-10">
             {hotel && <HotelIndicator />}
             {!hotel && Array.from({ length: houses }).map((_, i) => (
@@ -189,20 +210,15 @@ export const Tile = memo(({ space, className, highlightSource = null }: TileProp
           </div>
         </div>
       ) : (
-        // Spacer
         <div className="h-[10%]" />
       )}
 
-      {/* Content Body */}
       <div className="flex-1 flex flex-col items-center p-1 text-center w-full relative z-0">
-
-        {/* Name */}
         <span className="text-[8px] font-bold uppercase leading-tight tracking-tight line-clamp-3 mb-1 min-h-[2.2em]">
           {name}
         </span>
 
-        {/* Icon / Central Graphic */}
-        <div className="flex-1 flex items-center justify-center scale-90">
+        <div className="flex-1 flex items-center justify-center scale-90 text-black">
           {isRailroad && <TrainIcon />}
           {isUtility && name.toLowerCase().includes('water') && <WaterIcon />}
           {isUtility && name.toLowerCase().includes('electric') && <BulbIcon />}
@@ -211,21 +227,18 @@ export const Tile = memo(({ space, className, highlightSource = null }: TileProp
           {isTax && <TaxIcon />}
         </div>
 
-        {/* Price */}
         {!owner_id && price !== null && (
           <span className="text-[8px] font-mono mt-auto pt-1 text-gray-600">{`$${price}`}</span>
         )}
       </div>
 
-      {/* Owner Strip */}
       {owner_id && (
         <div
-          className="h-[4px] w-full border-t border-black absolute bottom-0 left-0"
+          className="h-[5px] w-full border-t border-black absolute bottom-0 left-0"
           style={{ backgroundColor: ownerColor || 'black' }}
         />
       )}
 
-      {/* Mortgaged Overlay - Improved visuals */}
       {mortgaged && (
         <div className="absolute inset-0 bg-white/90 backdrop-blur-[1px] flex items-center justify-center z-20">
           <div className="border-2 border-neo-red px-1 py-0.5 transform -rotate-12 bg-white shadow-sm">

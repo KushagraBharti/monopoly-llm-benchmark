@@ -42,6 +42,7 @@ export const PlayerCard = ({
 
   return (
     <NeoCard
+      data-player-card-id={playerId}
       className={cn(
         'p-3 flex flex-col gap-2 h-full',
         isActive ? 'bg-neo-yellow/20' : 'bg-white'

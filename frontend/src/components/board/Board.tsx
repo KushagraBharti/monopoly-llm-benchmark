@@ -40,12 +40,14 @@ export const Board = ({ spaces, className }: BoardProps) => {
     }, [spaces]);
 
     return (
-        <div className={cn("relative p-2", className)}>
+        <div className={cn('relative p-3', className)} data-board-root="true">
             {/* Board Physical Base */}
-            <div className="relative w-full h-full bg-neo-bg border-[6px] border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] rounded-sm overflow-hidden">
+            <div className="relative w-full h-full bg-[linear-gradient(135deg,#f7f3ea,#f0e8db)] border-[8px] border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] rounded-sm overflow-hidden">
+                <div className="absolute inset-2 border-2 border-black/20 pointer-events-none" />
+                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_20%_20%,#000_1px,transparent_1px)] bg-[length:18px_18px]" />
 
                 {/* The Grid - Tight gaps for printed look */}
-                <div className="absolute inset-0 grid grid-cols-11 grid-rows-11 gap-[1px] bg-black p-[2px]">
+                <div className="absolute inset-0 grid grid-cols-11 grid-rows-11 gap-[1px] bg-[#1c1c1c] p-[2px]">
                     {safeSpaces.map((space) => {
                         const { row, col } = getGridPosition(space.index);
                         return (
@@ -74,14 +76,14 @@ export const Board = ({ spaces, className }: BoardProps) => {
                     })}
 
                     {/* Center Board Area */}
-                    <div className="row-start-2 row-end-11 col-start-2 col-end-11 bg-neo-bg flex items-center justify-center flex-col relative overflow-hidden">
+                    <div className="row-start-2 row-end-11 col-start-2 col-end-11 bg-[#f8f5ef] flex items-center justify-center flex-col relative overflow-hidden">
 
                         {/* Subtle Center Texture */}
-                        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--color-neo-black)_1px,_transparent_1px)] bg-[length:16px_16px]" />
+                        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,#000_1px,transparent_1px)] bg-[length:16px_16px]" />
 
                         {/* Branding */}
                         <div className="z-10 transform -rotate-6">
-                            <h1 className="text-4xl md:text-7xl font-black uppercase text-center tracking-tighter leading-[0.85] drop-shadow-[4px_4px_0_rgba(0,0,0,0.1)]">
+                            <h1 className="text-4xl md:text-7xl font-black uppercase text-center tracking-tighter leading-[0.85] drop-shadow-[4px_4px_0_rgba(0,0,0,0.12)]">
                                 MONOPOLY<br />
                                 <span className="text-neo-pink text-5xl md:text-8xl block mt-2">ARENA</span>
                             </h1>

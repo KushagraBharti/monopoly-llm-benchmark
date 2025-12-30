@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '@/state/store';
 import { CardModal } from '@/components/board/CardModal';
 import { PropertyToast } from '@/components/board/PropertyToast';
@@ -6,183 +6,381 @@ import { getCardDetails } from '@/domain/monopoly/cardData';
 import type { Event } from '@/net/contracts';
 import { AnimatePresence, motion } from 'framer-motion';
 import { getCSSPosition } from './utils';
+import { SPACE_INDEX_BY_KEY, normalizeSpaceKey } from '@/domain/monopoly/constants';
+
+const CASH_TOAST_DURATION_MS = 1600;
+const CASH_TOAST_COOLDOWN_MS = 800;
+
+const resolveSpaceIndex = (value: string, board: { index: number; name: string }[]): number | null => {
+    const normalized = normalizeSpaceKey(value);
+    if (SPACE_INDEX_BY_KEY[normalized] !== undefined) {
+        return SPACE_INDEX_BY_KEY[normalized];
+    }
+    const match = board.find((space) => normalizeSpaceKey(space.name) === normalized);
+    return match ? match.index : null;
+};
+
+type PropertyMethod = 'BOUGHT' | 'WON' | 'TRADED';
 
 type AnimationItem =
-    | { type: 'CARD'; event: Event & { type: 'CARD_DRAWN' } }
-    | { type: 'PROPERTY'; event: Event; method: 'BOUGHT' | 'WON' | 'TRADED'; spaceIndex: number; price?: number }
-    | { type: 'JAIL'; event: Event & { type: 'SENT_TO_JAIL' } }
-    | { type: 'CASH'; amount: number; playerId: string; reason?: string; key: string };
+    | { type: 'CARD'; event: Event & { type: 'CARD_DRAWN' }; originOffset: { x: number; y: number } }
+    | {
+          type: 'PROPERTY';
+          eventId: string;
+          spaceIndex: number;
+          method: PropertyMethod;
+          price?: number;
+          playerId?: string | null;
+          start: { x: number; y: number };
+          target?: { x: number; y: number } | null;
+      }
+    | { type: 'JAIL'; event: Event & { type: 'SENT_TO_JAIL' } };
+
+type CashToast = {
+    key: string;
+    amount: number;
+    playerId: string;
+    reason?: string;
+    origin: { x: number; y: number };
+};
 
 export const BoardEffectsLayer = () => {
     const events = useGameStore((state) => state.events);
     const snapshot = useGameStore((state) => state.snapshot);
+    const runId = useGameStore((state) => state.runStatus.runId);
+    const logResetId = useGameStore((state) => state.logResetId);
     const [queue, setQueue] = useState<AnimationItem[]>([]);
-    const [floatingTexts, setFloatingTexts] = useState<AnimationItem[]>([]); // allow multiple floating texts
+    const [cashToasts, setCashToasts] = useState<CashToast[]>([]);
     const [activeItem, setActiveItem] = useState<AnimationItem | null>(null);
     const processedEventIds = useRef<Set<string>>(new Set());
+    const lastCashTsByPlayer = useRef<Map<string, number>>(new Map());
+    const hasHydrated = useRef(false);
+    const activeItemRef = useRef<AnimationItem | null>(null);
+    const lastTurnIndexRef = useRef<number | null>(null);
 
-    // Ingest events
+    useEffect(() => {
+        processedEventIds.current.clear();
+        lastCashTsByPlayer.current.clear();
+        hasHydrated.current = false;
+        setQueue([]);
+        setCashToasts([]);
+        setActiveItem(null);
+    }, [logResetId, snapshot?.run_id, runId]);
+
+    useEffect(() => {
+        activeItemRef.current = activeItem;
+    }, [activeItem]);
+
+    useEffect(() => {
+        const currentTurn = snapshot?.turn_index ?? null;
+        if (
+            currentTurn !== null &&
+            lastTurnIndexRef.current !== null &&
+            currentTurn < lastTurnIndexRef.current
+        ) {
+            processedEventIds.current.clear();
+            lastCashTsByPlayer.current.clear();
+            hasHydrated.current = false;
+            setQueue([]);
+            setCashToasts([]);
+            setActiveItem(null);
+        }
+        lastTurnIndexRef.current = currentTurn;
+    }, [snapshot?.turn_index]);
+
+    useEffect(() => {
+        if (events.length === 0 && processedEventIds.current.size) {
+            processedEventIds.current.clear();
+            lastCashTsByPlayer.current.clear();
+            hasHydrated.current = false;
+            setQueue([]);
+            setCashToasts([]);
+            setActiveItem(null);
+        }
+    }, [events.length]);
+
+    const getBoardRect = () => {
+        const el = document.querySelector('[data-board-root="true"]') as HTMLElement | null;
+        return el ? el.getBoundingClientRect() : null;
+    };
+
+    const getBoardCenter = () => {
+        const rect = getBoardRect();
+        if (!rect) {
+            return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        }
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+
+    const getBoardPoint = (spaceIndex: number): { x: number; y: number } => {
+        const boardRect = getBoardRect();
+        if (!boardRect) {
+            return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        }
+        const { x, y } = getCSSPosition(spaceIndex);
+        return {
+            x: boardRect.left + (x / 100) * boardRect.width,
+            y: boardRect.top + (y / 100) * boardRect.height,
+        };
+    };
+
+    const getPlayerAnchor = (playerId: string | null | undefined): { x: number; y: number } | null => {
+        if (!playerId) return null;
+        const el = document.querySelector(`[data-player-card-id="${playerId}"]`) as HTMLElement | null;
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        return {
+            x: rect.left + rect.width * 0.5,
+            y: rect.top + rect.height * 0.45,
+        };
+    };
+
+    const getPlayerPosition = (playerId: string | null | undefined): number | null => {
+        if (!playerId) return null;
+        const player = snapshot?.players.find((entry) => entry.player_id === playerId);
+        return player?.position ?? null;
+    };
+
+    const addCashToast = (payload: CashToast) => {
+        setCashToasts((prev) => [...prev, payload]);
+        window.setTimeout(() => {
+            setCashToasts((prev) => prev.filter((item) => item.key !== payload.key));
+        }, CASH_TOAST_DURATION_MS);
+    };
+
     useEffect(() => {
         if (!events.length) return;
 
-        // Check new events (we usually get them LIFO or FIFO depending on store? Store pushes to front [event, ...state.events])
-        // Actually store pushes: const nextEvents = isGameStart ? [event] : [event, ...state.events]
-        // So events[0] is LATEST.
-        // We need to process them in chronological order if possible, or just process the latest if we are live.
-        // For simplicity, let's just look at events[0] if it's new.
-
-        const latestInfo = events[0];
-        if (!latestInfo || processedEventIds.current.has(latestInfo.event_id)) return;
-
-        processedEventIds.current.add(latestInfo.event_id);
-
-        let newItem: AnimationItem | null = null;
-
-        if (latestInfo.type === 'CARD_DRAWN') {
-            newItem = { type: 'CARD', event: latestInfo };
-            setQueue(prev => [...prev, newItem!]);
-        } else if (latestInfo.type === 'PROPERTY_PURCHASED') {
-            newItem = {
-                type: 'PROPERTY',
-                event: latestInfo,
-                method: 'BOUGHT',
-                spaceIndex: latestInfo.payload.space_index,
-                price: latestInfo.payload.price
-            };
-            setQueue(prev => [...prev, newItem!]);
-        } else if (latestInfo.type === 'AUCTION_ENDED' && latestInfo.payload.winner_player_id) {
-            // We need to find the space index from property name or wait?
-            // snapshot has the board. We can find space by name.
-            const board = snapshot?.board || [];
-            const space = board.find(s => s.name === latestInfo.payload.property_space);
-            if (space) {
-                newItem = {
-                    type: 'PROPERTY',
-                    event: latestInfo,
-                    method: 'WON',
-                    spaceIndex: space.index,
-                    price: latestInfo.payload.winning_bid || 0
-                };
-                setQueue(prev => [...prev, newItem!]);
+        const activeRunId = snapshot?.run_id ?? runId ?? null;
+        if (!activeRunId) {
+            return;
+        }
+        if (!hasHydrated.current) {
+            for (const event of events) {
+                if (event?.event_id) {
+                    processedEventIds.current.add(event.event_id);
+                }
             }
-        } else if (latestInfo.type === 'SENT_TO_JAIL') {
-            newItem = { type: 'JAIL', event: latestInfo };
-            setQueue(prev => [...prev, newItem!]);
-        } else if (latestInfo.type === 'RENT_PAID') {
-            // Rent paid involves two players: Payer and Payee.
-            // Show -Amount for Payer, +Amount for Payee.
-            const { from_player_id, to_player_id, amount } = latestInfo.payload;
-            addFloatingText(-amount, from_player_id, "Rent Paid", latestInfo.event_id + "_out");
-            addFloatingText(amount, to_player_id, "Rent Received", latestInfo.event_id + "_in");
-        } else if (latestInfo.type === 'CASH_CHANGED') {
-            // Only show significant cash changes that aren't rent (covered above) or property buying (redundant with toast? maybe show both)
-            // Let's filter out Reason: "Rent" if it acts as duplicate, but usually CASH_CHANGED comes with reasons like "Go", "Tax".
-            const { player_id, delta, reason } = latestInfo.payload;
-            if (reason.toLowerCase().includes('rent')) return; // handled by RENT_PAID usually, or ignore to avoid spam
-            if (reason.toLowerCase().includes('buy')) return; // handled by PROPERTY_PURCHASED
+            hasHydrated.current = true;
+            return;
+        }
+        const board = snapshot?.board ?? [];
+        const newItems: AnimationItem[] = [];
 
-            addFloatingText(delta, player_id, reason, latestInfo.event_id);
+        for (let i = events.length - 1; i >= 0; i -= 1) {
+            const event = events[i];
+            if (!event || processedEventIds.current.has(event.event_id)) continue;
+            if (activeRunId && event.run_id !== activeRunId) {
+                continue;
+            }
+            processedEventIds.current.add(event.event_id);
+
+            if (event.type === 'CARD_DRAWN') {
+                const origin = getBoardCenter();
+                const offset = { x: origin.x - window.innerWidth / 2, y: origin.y - window.innerHeight / 2 };
+                newItems.push({ type: 'CARD', event, originOffset: offset });
+                continue;
+            }
+
+            if (event.type === 'PROPERTY_PURCHASED') {
+                const start = getBoardCenter();
+                const target = getPlayerAnchor(event.payload.player_id);
+                newItems.push({
+                    type: 'PROPERTY',
+                    eventId: event.event_id,
+                    spaceIndex: event.payload.space_index,
+                    method: 'BOUGHT',
+                    price: event.payload.price,
+                    playerId: event.payload.player_id,
+                    start,
+                    target,
+                });
+                continue;
+            }
+
+            if (event.type === 'PROPERTY_TRANSFERRED' && event.payload.to_player_id) {
+                const start = getBoardCenter();
+                const target = getPlayerAnchor(event.payload.to_player_id);
+                newItems.push({
+                    type: 'PROPERTY',
+                    eventId: event.event_id,
+                    spaceIndex: event.payload.space_index,
+                    method: 'TRADED',
+                    playerId: event.payload.to_player_id,
+                    start,
+                    target,
+                });
+                continue;
+            }
+
+            if (event.type === 'AUCTION_ENDED' && event.payload.winner_player_id) {
+                const resolvedIndex = resolveSpaceIndex(event.payload.property_space, board);
+                if (resolvedIndex !== null) {
+                    const start = getBoardCenter();
+                    const target = getPlayerAnchor(event.payload.winner_player_id);
+                    newItems.push({
+                        type: 'PROPERTY',
+                        eventId: event.event_id,
+                        spaceIndex: resolvedIndex,
+                        method: 'WON',
+                        price: event.payload.winning_bid ?? 0,
+                        playerId: event.payload.winner_player_id,
+                        start,
+                        target,
+                    });
+                }
+                continue;
+            }
+
+            if (event.type === 'SENT_TO_JAIL') {
+                newItems.push({ type: 'JAIL', event });
+                continue;
+            }
+
+            if (event.type === 'RENT_PAID') {
+                const timestamp = event.ts_ms ?? Date.now();
+                const fromPos = getPlayerPosition(event.payload.from_player_id);
+                const toPos = getPlayerPosition(event.payload.to_player_id);
+                if (fromPos !== null) {
+                    addCashToast({
+                        key: `${event.event_id}-rent-out`,
+                        amount: -event.payload.amount,
+                        playerId: event.payload.from_player_id,
+                        reason: 'Rent Paid',
+                        origin: getBoardPoint(fromPos),
+                    });
+                    lastCashTsByPlayer.current.set(event.payload.from_player_id, timestamp);
+                }
+                if (toPos !== null) {
+                    addCashToast({
+                        key: `${event.event_id}-rent-in`,
+                        amount: event.payload.amount,
+                        playerId: event.payload.to_player_id,
+                        reason: 'Rent Received',
+                        origin: getBoardPoint(toPos),
+                    });
+                    lastCashTsByPlayer.current.set(event.payload.to_player_id, timestamp);
+                }
+                continue;
+            }
+
+            if (event.type === 'CASH_CHANGED') {
+                const timestamp = event.ts_ms ?? Date.now();
+                const lastTs = lastCashTsByPlayer.current.get(event.payload.player_id) ?? 0;
+                const delta = event.payload.delta;
+                const reason = event.payload.reason;
+                const shouldShow =
+                    Math.abs(delta) >= 20 || timestamp - lastTs >= CASH_TOAST_COOLDOWN_MS;
+                if (!shouldShow) continue;
+                if (reason.toLowerCase().includes('rent')) continue;
+                if (reason.toLowerCase().includes('buy')) continue;
+                const position = getPlayerPosition(event.payload.player_id);
+                if (position !== null) {
+                    addCashToast({
+                        key: `${event.event_id}-cash`,
+                        amount: delta,
+                        playerId: event.payload.player_id,
+                        reason,
+                        origin: getBoardPoint(position),
+                    });
+                    lastCashTsByPlayer.current.set(event.payload.player_id, timestamp);
+                }
+            }
         }
 
-    }, [events, snapshot?.board]);
+        if (newItems.length) {
+            setQueue((prev) => [...prev, ...newItems]);
+        }
+    }, [events, snapshot]);
 
-    const addFloatingText = (amount: number, playerId: string, reason: string, key: string) => {
-        setFloatingTexts(prev => [...prev, { type: 'CASH', amount, playerId, reason, key }]);
-        // Auto remove floating text after animation
-        setTimeout(() => {
-            setFloatingTexts(prev => prev.filter(item => (item as any).key !== key));
-        }, 2000);
-    };
-
-    // Process Main Queue (Modals/Blocking-ish animations)
     useEffect(() => {
         if (activeItem || queue.length === 0) return;
-
         const next = queue[0];
         setActiveItem(next);
-        setQueue(q => q.slice(1));
+        setQueue((prev) => prev.slice(1));
+    }, [activeItem, queue]);
 
-        // Auto dismiss durations
-        let duration = 2000;
-        if (next.type === 'CARD') duration = 2500;
-        if (next.type === 'PROPERTY') duration = 1500;
-        if (next.type === 'JAIL') duration = 2000;
+    useEffect(() => {
+        if (!activeItem) return;
+        if (activeItem.type === 'PROPERTY') return;
+        let duration = 1900;
+        if (activeItem.type === 'CARD') duration = 2300;
+        if (activeItem.type === 'JAIL') duration = 1800;
 
-        const timer = setTimeout(() => {
+        const timer = window.setTimeout(() => {
             setActiveItem(null);
         }, duration);
 
-        return () => clearTimeout(timer);
-    }, [activeItem, queue]);
+        return () => window.clearTimeout(timer);
+    }, [activeItem]);
 
-    // Helper to get Space object
     const getSpace = (index: number) => snapshot?.board?.[index];
 
-    // Helper to get Player coordinates
-    const getPlayerCoords = (playerId: string) => {
-        const player = snapshot?.players.find(p => p.player_id === playerId);
-        if (!player) return { left: '50%', top: '50%' };
-        const { x, y } = getCSSPosition(player.position);
-        return { left: `${x}%`, top: `${y}%` };
-    };
-
     return (
-        <div className="absolute inset-0 pointer-events-none z-50 flex items-center justify-center">
-            {/* CARD MODAL */}
+        <div className="fixed inset-0 pointer-events-none z-50">
             {activeItem?.type === 'CARD' && (
                 <div className="pointer-events-auto">
                     <CardModal
                         isOpen={true}
                         deck={activeItem.event.payload.deck_type}
                         card={getCardDetails(activeItem.event.payload.deck_type, activeItem.event.payload.card_id)}
+                        originOffset={activeItem.originOffset}
                         onClose={() => setActiveItem(null)}
                     />
                 </div>
             )}
 
-            {/* PROPERTY TOAST */}
             {activeItem?.type === 'PROPERTY' && getSpace(activeItem.spaceIndex) && (
                 <PropertyToast
+                    key={activeItem.eventId}
                     isVisible={true}
                     space={getSpace(activeItem.spaceIndex)!}
                     method={activeItem.method}
                     price={activeItem.price}
+                    start={activeItem.start}
+                    target={activeItem.target}
+                    onComplete={() => {
+                        const current = activeItemRef.current;
+                        if (current?.type === 'PROPERTY' && current.eventId === activeItem.eventId) {
+                            setActiveItem(null);
+                        }
+                    }}
                 />
             )}
 
-            {/* JAIL TOAST */}
             <AnimatePresence>
                 {activeItem?.type === 'JAIL' && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.5, rotate: -20 }}
-                        animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                        exit={{ opacity: 0, scale: 0.5, y: 100 }}
-                        className="bg-black text-white border-4 border-neo-red p-4 shadow-neo-lg z-50 rotate-[-5deg]"
+                        initial={{ opacity: 0, scale: 0.8, y: 40 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 40 }}
+                        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black text-white border-4 border-neo-red p-4 shadow-neo-lg z-[70]"
                     >
-                        <h2 className="text-3xl font-black uppercase text-neo-red stroke-black drop-shadow-sm">GO TO JAIL!</h2>
-                        <div className="text-center font-mono text-sm mt-2">{activeItem.event.payload.reason}</div>
+                        <div className="text-[18px] font-black uppercase text-neo-red tracking-tight">Sent to Jail</div>
+                        <div className="text-center font-mono text-[11px] mt-2">
+                            {activeItem.event.payload.reason || 'Jail'}
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* FLOATING CASH TEXTS */}
             <AnimatePresence>
-                {floatingTexts.map((item) => {
-                    if (item.type !== 'CASH') return null;
-                    const coords = getPlayerCoords(item.playerId);
+                {cashToasts.map((item) => {
                     const isPositive = item.amount > 0;
                     return (
                         <motion.div
                             key={item.key}
-                            initial={{ opacity: 0, y: 0, scale: 0.5 }}
-                            animate={{ opacity: 1, y: -40, scale: 1 }}
-                            exit={{ opacity: 0, y: -60 }}
-                            transition={{ duration: 1.5, ease: "easeOut" }}
-                            className="absolute z-50 flex flex-col items-center"
-                            style={{ left: coords.left, top: coords.top }}
+                            initial={{ opacity: 0, y: 6, scale: 0.9 }}
+                            animate={{ opacity: 1, y: -24, scale: 1 }}
+                            exit={{ opacity: 0, y: -32 }}
+                            transition={{ duration: 1.2, ease: 'easeOut' }}
+                            className="fixed z-[60] flex flex-col items-center"
+                            style={{ left: item.origin.x, top: item.origin.y }}
                         >
-                            <span className={`font-black text-lg drop-shadow-[2px_2px_0_#FFF] ${isPositive ? 'text-neo-green stroke-black' : 'text-neo-red'}`}
-                                style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
+                            <span
+                                className={`font-black text-[14px] drop-shadow-[1px_1px_0_#FFF] ${isPositive ? 'text-neo-green' : 'text-neo-red'}`}
+                                style={{ textShadow: '1px 1px 0 #000, -1px -1px 0 #000' }}
+                            >
                                 {isPositive ? '+' : ''}{item.amount}
                             </span>
                             {item.reason && (
