@@ -8,7 +8,6 @@ import { EventFeed } from '@/components/feed/EventFeed';
 import { ChatFeed } from '@/components/feed/ChatFeed';
 import { GameControls } from '@/components/panels/GameControls';
 import { Inspector } from '@/components/panels/Inspector';
-import { DecisionOverlay } from '@/components/panels/DecisionOverlay';
 import { AuctionPanel } from '@/components/panels/AuctionPanel';
 import { TradeInspectorPanel } from '@/components/panels/TradeInspectorPanel';
 import { NeoBadge, cn } from '@/components/ui/NeoPrimitive';
@@ -190,17 +189,17 @@ function App() {
 
       {/* Main Area: Board (Centered & Scaled) */}
       <main className="flex-1 h-full relative flex items-center justify-center bg-neo-bg p-4 overflow-hidden">
-        {/* Background Grid Pattern */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none"
+        {/* Background Image */}
+        <div className="absolute inset-0 opacity-100 pointer-events-none" 
           style={{
-            backgroundImage: 'linear-gradient(#000 2px, transparent 2px), linear-gradient(90deg, #000 2px, transparent 2px)',
-            backgroundSize: '40px 40px'
+        backgroundImage: 'url(/background.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
           }}
         />
 
         <Board spaces={snapshot?.board || []} className="h-full max-h-[95vh] w-auto aspect-square shadow-2xl relative z-10" />
         <BoardEffectsLayer />
-        <DecisionOverlay />
       </main>
 
       {/* Right Sidebar: Feed */}

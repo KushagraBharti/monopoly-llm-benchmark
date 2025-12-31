@@ -1,4 +1,4 @@
-# Monopoly Arena Frontend
+# Monopoly Bench Frontend
 
 Render-only React UI for the Monopoly LLM benchmark.
 

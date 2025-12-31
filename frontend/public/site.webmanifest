@@ -1,0 +1,18 @@
+{
+  "name": "Monopoly LLM Benchmark",
+  "short_name": "LLM Monopoly",
+  "description": "A deterministic Monopoly bench for LLMs with strict legality, replayable runs, and research-grade telemetry.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f2f2f0",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/monopoly-icon2.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -83,11 +83,11 @@ export const Board = ({ spaces, className }: BoardProps) => {
 
                         {/* Branding */}
                         <div className="z-10 transform -rotate-6">
-                            <h1 className="text-4xl md:text-7xl font-black uppercase text-center tracking-tighter leading-[0.85] drop-shadow-[4px_4px_0_rgba(0,0,0,0.12)]">
-                                MONOPOLY<br />
-                                <span className="text-neo-pink text-5xl md:text-8xl block mt-2">ARENA</span>
-                            </h1>
-                            <div className="w-full h-1 bg-black mt-4 mb-2" />
+                            <img
+                                src="/../logo2.png"
+                                alt="Monopoly Bench"
+                                className="w-auto h-64 md:h-150 drop-shadow-[4px_4px_0_rgba(0,0,0,0.12)]"
+                            />
                         </div>
                     </div>
                 </div>
