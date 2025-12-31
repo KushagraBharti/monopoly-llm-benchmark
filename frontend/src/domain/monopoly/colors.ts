@@ -73,6 +73,20 @@ export const getPlayerIndex = (playerId: string): number => {
   return Math.abs(hash) % PLAYER_COLOR_LIST.length;
 };
 
+const PLAYER_TOKEN_IMAGES = [
+  'redplayer.png',
+  'blueplayer.png',
+  'greenplayer.png',
+  'goldplayer.png',
+] as const
+
+export const getPlayerTokenSrc = (playerId: string): string => {
+  const index = getPlayerIndex(playerId)
+  const fileName = PLAYER_TOKEN_IMAGES[index % PLAYER_TOKEN_IMAGES.length]
+  const baseUrl = import.meta.env.BASE_URL ?? '/'
+  return `${baseUrl}${fileName}`
+}
+
 export const getPlayerInitials = (playerId: string, name?: string | null): string => {
   if (name && name.trim().length > 0) {
     const trimmed = name.trim();

@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useGameStore } from '@/state/store';
 import { getCSSPosition } from '@/components/board/utils';
-import { getPlayerColor, getPlayerInitials } from '@/domain/monopoly/colors';
+import { getPlayerTokenSrc } from '@/domain/monopoly/colors';
 import { cn } from '@/components/ui/NeoPrimitive';
 
 export const TokenLayer = () => {
@@ -22,7 +22,7 @@ export const TokenLayer = () => {
         <div className="absolute inset-0 pointer-events-none z-30 overflow-visible">
             {players.map((player) => {
                 const { x, y } = getCSSPosition(player.position);
-                const color = getPlayerColor(player.player_id);
+                const tokenSrc = getPlayerTokenSrc(player.player_id);
                 const isActive = activeId === player.player_id;
 
                 const playersAtPos = positionCounts.get(player.position) || 1;
@@ -58,26 +58,20 @@ export const TokenLayer = () => {
                         }}
                         className="absolute w-0 h-0 flex items-center justify-center"
                     >
-                        {/* Shadow blob */}
-                        <div className="absolute w-9 h-3 bg-black/35 rounded-[100%] blur-[2px] translate-y-4 skew-x-12" />
-
-                        {/* Chip Body - Larger and thicker */}
                         <div
-                            className={cn(
-                                "relative w-10 h-10 rounded-full border-[3px] bg-white flex items-center justify-center transition-shadow",
-                                isActive ? "ring-4 ring-neo-yellow ring-offset-2 ring-offset-white" : ""
-                            )}
+                            className={cn("relative w-10 h-10 shrink-0")}
                             style={{
-                                backgroundColor: color,
-                                borderColor: 'black',
-                                boxShadow: isActive
-                                    ? '0px 0px 0px 2px rgba(0,0,0,0.5), 0px 10px 18px rgba(0,0,0,0.35)'
-                                    : '0px 6px 0px 0px #000'
+                                filter: isActive
+                                    ? 'drop-shadow(0px 0px 10px rgba(255, 242, 0, 0.9)) drop-shadow(0px 6px 0px rgba(0,0,0,1))'
+                                    : 'drop-shadow(0px 6px 0px rgba(0,0,0,1))',
                             }}
                         >
-                            <span className="font-black text-[12px] text-white drop-shadow-[0_1.5px_0_rgba(0,0,0,1)] select-none uppercase tracking-tighter">
-                                {getPlayerInitials(player.player_id, player.name)}
-                            </span>
+                            <img
+                                src={tokenSrc}
+                                alt={player.name ? `${player.name} token` : `${player.player_id} token`}
+                                className="block w-full h-full object-contain select-none pointer-events-none"
+                                draggable={false}
+                            />
                         </div>
                     </motion.div>
                 );
