@@ -13,7 +13,8 @@ Reads a markdown file containing multiple prompt sections like:
 For each section, inserts:
 One-line version="...code-safe escaped string..."
 
-The one-line string is the section content excluding the inserted line itself.
+IMPORTANT: The one-line string is ONLY the section body AFTER the header,
+and ONLY up to (but not including) the --- divider.
 """
 
 import argparse
@@ -43,7 +44,6 @@ def split_sections(md: str):
     """
     Split markdown into sections starting with '## N) ...'
     Returns list of (header_line, section_body_after_header).
-    Keeps everything after the header until the next header or EOF.
     """
     matches = list(HEADER_RE.finditer(md))
     if not matches:
@@ -54,7 +54,7 @@ def split_sections(md: str):
         start = m.start()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(md)
         chunk = md[start:end]
-        # Separate the first header line from the rest
+
         first_newline = chunk.find("\n")
         if first_newline == -1:
             header = chunk.strip("\n")
@@ -80,11 +80,8 @@ def insert_one_liner(body: str, one_liner_value: str) -> str:
 
     m = DIVIDER_RE.search(body)
     if m:
-        # Insert before divider line
         return body[: m.start()] + insertion + "\n" + body[m.start():]
     else:
-        # Append at end
-        # Ensure trailing newline
         if not body.endswith("\n"):
             body += "\n"
         return body + insertion
@@ -99,13 +96,14 @@ def process(md: str) -> str:
     for header, body in sections:
         body_clean = remove_existing_one_liner(body)
 
-        # The prompt text to one-line: header + blank line + body (minus divider if present)
-        # We want "above prompt" = everything in the section up to (but not including) the divider.
+        # Only the prompt body up to divider (exclude header entirely)
         divider_match = DIVIDER_RE.search(body_clean)
-        prompt_part = body_clean[: divider_match.start()] if divider_match else body_clean
-        prompt_text = header + "\n" + prompt_part
+        prompt_body = body_clean[: divider_match.start()] if divider_match else body_clean
 
-        one_liner = escape_one_line(prompt_text)
+        # Trim leading/trailing whitespace/newlines so you don't get weird leading \n
+        prompt_body = prompt_body.strip("\n")
+
+        one_liner = escape_one_line(prompt_body)
 
         new_body = insert_one_liner(body_clean, one_liner)
         rebuilt.append(header + "\n" + new_body)
