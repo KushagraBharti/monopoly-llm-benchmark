@@ -42,12 +42,12 @@ export const Board = ({ spaces, className }: BoardProps) => {
     return (
         <div className={cn('relative p-3', className)} data-board-root="true">
             {/* Board Physical Base */}
-            <div className="relative w-full h-full bg-[linear-gradient(135deg,#f7f3ea,#f0e8db)] border-[8px] border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] rounded-sm overflow-hidden">
+            <div className="relative w-full h-full bg-[linear-gradient(135deg,#f7f3ea,#f0e8db)] border-8 border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] rounded-sm overflow-hidden">
                 <div className="absolute inset-2 border-2 border-black/20 pointer-events-none" />
-                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_20%_20%,#000_1px,transparent_1px)] bg-[length:18px_18px]" />
+                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_20%_20%,#000_1px,transparent_1px)] bg-size-[18px_18px]" />
 
                 {/* The Grid - Tight gaps for printed look */}
-                <div className="absolute inset-0 grid grid-cols-11 grid-rows-11 gap-[1px] bg-[#1c1c1c] p-[2px]">
+                <div className="absolute inset-0 grid grid-cols-11 grid-rows-11 gap-px bg-[#1c1c1c] p-0.5">
                     {safeSpaces.map((space) => {
                         const { row, col } = getGridPosition(space.index);
                         return (
@@ -79,7 +79,7 @@ export const Board = ({ spaces, className }: BoardProps) => {
                     <div className="row-start-2 row-end-11 col-start-2 col-end-11 bg-[#f8f5ef] flex items-center justify-center flex-col relative overflow-hidden">
 
                         {/* Subtle Center Texture */}
-                        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,#000_1px,transparent_1px)] bg-[length:16px_16px]" />
+                        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,#000_1px,transparent_1px)] bg-size-[16px_16px]" />
 
                         {/* Branding */}
                         <div className="z-10 transform -rotate-6">

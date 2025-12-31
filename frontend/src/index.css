@@ -155,11 +155,11 @@ body {
   }
 
   .brutal-card:hover {
-    @apply translate-x-[-2px] translate-y-[-2px] shadow-neo-lg;
+    @apply -translate-x-0.5 -translate-y-0.5 shadow-neo-lg;
   }
 
   .brutal-btn {
-    @apply inline-flex items-center justify-center px-4 py-2 border-2 border-neo-border bg-white text-neo-black font-bold uppercase tracking-tight shadow-neo transition-all duration-100 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-neo-lg cursor-pointer;
+    @apply inline-flex items-center justify-center px-4 py-2 border-2 border-neo-border bg-white text-neo-black font-bold uppercase tracking-tight shadow-neo transition-all duration-100 active:translate-x-0.5 active:translate-y-0.5 active:shadow-none hover:-translate-x-px hover:-translate-y-px hover:shadow-neo-lg cursor-pointer;
   }
 
   .brutal-btn-primary {

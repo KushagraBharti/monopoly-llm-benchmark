@@ -1,0 +1,16 @@
+{
+  // Tailwind v4 uses custom at-rules like @theme/@utility and @apply.
+  // VS Code's built-in CSS validator doesn't understand them and reports noise.
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore",
+
+  // Use SchemaStore's tsconfig schema so VS Code doesn't flag valid options as deprecated.
+  "json.schemas": [
+    {
+      "fileMatch": ["tsconfig.json", "tsconfig.*.json"],
+      "url": "https://json.schemastore.org/tsconfig"
+    }
+  ]
+}
+

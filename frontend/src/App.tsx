@@ -120,7 +120,7 @@ function App() {
     <div className="h-screen w-screen bg-neo-bg text-black font-sans overflow-hidden flex relative">
 
       {/* Sidebar: Left Panel (Players & Controls & Ownership) */}
-      <aside className="w-[550px] h-full border-r-4 border-black bg-white flex flex-col z-30 shadow-neo-lg">
+      <aside className="w-137.5 h-full border-r-4 border-black bg-white flex flex-col z-30 shadow-neo-lg">
         <header className="p-1.5 border-b-2 border-black bg-gray-50 shrink-0">
           <h1 className="text-lg font-black uppercase tracking-tighter leading-none mb-0.5">
             Monopoly <span className="text-neo-pink">Arena</span>
