@@ -26,7 +26,7 @@ def build_space_key_by_index() -> dict[int, str]:
     return dict(SPACE_KEY_BY_INDEX)
 
 
-SPACE_KEY_BY_INDEX = build_space_key_by_index()
+SPACE_KEY_BY_INDEX_LOOKUP = build_space_key_by_index()
 
 
 def space_key_for_index(space_index: int, mapping: dict[int, str]) -> str:
@@ -50,7 +50,7 @@ class PromptMemory:
         recent_actions_limit: int = 20,
         private_thought_limit: int = 10,
     ) -> None:
-        self._space_key_by_index = space_key_by_index or SPACE_KEY_BY_INDEX
+        self._space_key_by_index = space_key_by_index or SPACE_KEY_BY_INDEX_LOOKUP
         self._public_chat: deque[dict[str, Any]] = deque(maxlen=public_chat_limit)
         self._recent_actions: deque[dict[str, Any]] = deque(maxlen=recent_actions_limit)
         self._private_thoughts: dict[str, deque[dict[str, Any]]] = defaultdict(
@@ -164,7 +164,6 @@ def build_full_state(
     players = snapshot.get("players", [])
     if len(players) != 4:
         raise ValueError("Exactly 4 players are required for LLM prompts.")
-    active_player_id = snapshot.get("active_player_id")
     board = snapshot.get("board", [])
     player_lookup = {player.get("player_id"): player for player in players}
     you_player = player_lookup.get(you_player_id) or player_lookup.get(snapshot.get("active_player_id"))
@@ -385,7 +384,7 @@ def build_buy_or_auction_decision_focus(
     state = decision.get("state", {})
     board = state.get("board", [])
     active_player_id = decision.get("player_id")
-    active_player = next(
+    active_player: dict[str, Any] = next(
         (player for player in state.get("players", []) if player.get("player_id") == active_player_id),
         {},
     )
@@ -394,9 +393,10 @@ def build_buy_or_auction_decision_focus(
     if landed_space is None:
         landed_space = {"index": position_index}
     space_kind = landed_space.get("kind")
-    group = landed_space.get("group")
+    raw_group = landed_space.get("group")
+    group = str(raw_group) if raw_group is not None else None
     rent = _rent_summary(space_kind, position_index)
-    house_cost = HOUSE_COST_BY_GROUP.get(group, 0) if space_kind == "PROPERTY" else 0
+    house_cost = HOUSE_COST_BY_GROUP.get(group, 0) if space_kind == "PROPERTY" and group else 0
     return {
         "schema_version": PROMPT_SCHEMA_VERSION,
         "decision_id": decision.get("decision_id"),
@@ -678,7 +678,7 @@ def build_trade_response_decision_focus(decision: dict[str, Any]) -> dict[str, A
                 "request": {},
             }
         )
-    current_offer = {"offer": {}, "request": {}}
+    current_offer: dict[str, dict[str, Any]] = {"offer": {}, "request": {}}
     tools: list[dict[str, Any]] = []
     for entry in decision.get("legal_actions", []):
         action_name = entry.get("action")

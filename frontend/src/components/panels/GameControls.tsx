@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { getApiBaseUrl } from '@/net/ws';
 import { useGameStore } from '@/state/store';
-import { NeoBadge, NeoCard, cn } from '@/components/ui/NeoPrimitive';
+import { NeoBadge, NeoCard } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 
 export const GameControls = () => {
   const [loadingAction, setLoadingAction] = useState<null | 'start' | 'stop' | 'pause' | 'resume'>(null);

@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import type { CardDefinition } from '@/domain/monopoly/cardData';
-import { cn } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 
 interface CardModalProps {
     isOpen: boolean;

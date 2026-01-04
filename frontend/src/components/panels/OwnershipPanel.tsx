@@ -3,7 +3,8 @@ import type { Space } from '@/net/contracts';
 import { useGameStore } from '@/state/store';
 import { getGroupColor, getPlayerColor } from '@/domain/monopoly/colors';
 import { selectOwnershipGroups } from '@/domain/monopoly/selectors';
-import { NeoCard, cn } from '@/components/ui/NeoPrimitive';
+import { NeoCard } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 
 const formatMiniLabel = (name: string): string => {
   const cleaned = name

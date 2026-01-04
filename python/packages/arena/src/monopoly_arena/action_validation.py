@@ -3,9 +3,9 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any
 
-from jsonschema import Draft202012Validator
-from jsonschema.exceptions import ValidationError
-from jsonschema.validators import validator_for
+from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+from jsonschema.exceptions import ValidationError  # type: ignore[import-untyped]
+from jsonschema.validators import validator_for  # type: ignore[import-untyped]
 
 from .schema_registry import get_schema, get_schema_registry
 
@@ -42,4 +42,3 @@ def validate_action_payload(action: dict[str, Any]) -> tuple[bool, list[str]]:
     if errors:
         return False, errors
     return True, []
-

@@ -17,11 +17,44 @@ function Invoke-Step {
   }
 }
 
+function Assert-Command {
+  param(
+    [Parameter(Mandatory = $true)][string]$Name
+  )
+  if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+    throw "Required command not found: $Name"
+  }
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $repoRoot
 try {
+  Invoke-Step -Name "Tooling: verify prerequisites" -ScriptBlock {
+    Assert-Command -Name "node"
+    Assert-Command -Name "uv"
+    Assert-Command -Name "yarn"
+  }
+
   Invoke-Step -Name "Contracts: validate examples" -ScriptBlock {
     node contracts/validate-contracts.mjs
+  }
+
+  Invoke-Step -Name "Python: lint (ruff)" -ScriptBlock {
+    Push-Location python
+    try {
+      uv run ruff check .
+    } finally {
+      Pop-Location
+    }
+  }
+
+  Invoke-Step -Name "Python: typecheck (mypy)" -ScriptBlock {
+    Push-Location python
+    try {
+      uv run mypy .
+    } finally {
+      Pop-Location
+    }
   }
 
   Invoke-Step -Name "Python: engine tests" -ScriptBlock {
@@ -46,6 +79,24 @@ try {
     Push-Location python/packages/arena
     try {
       uv run pytest
+    } finally {
+      Pop-Location
+    }
+  }
+
+  Invoke-Step -Name "Python: telemetry tests" -ScriptBlock {
+    Push-Location python/packages/telemetry
+    try {
+      uv run pytest
+    } finally {
+      Pop-Location
+    }
+  }
+
+  Invoke-Step -Name "Frontend: lint" -ScriptBlock {
+    Push-Location frontend
+    try {
+      yarn lint
     } finally {
       Pop-Location
     }

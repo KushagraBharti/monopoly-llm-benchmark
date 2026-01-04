@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useGameStore } from '@/state/store';
 import { getCSSPosition } from '@/components/board/utils';
 import { getPlayerTokenSrc } from '@/domain/monopoly/colors';
-import { cn } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 
 export const TokenLayer = () => {
     const snapshot = useGameStore((state) => state.snapshot);

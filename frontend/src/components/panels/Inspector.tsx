@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from '@/state/store';
-import { NeoBadge, cn } from '@/components/ui/NeoPrimitive';
+import { NeoBadge } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 import { LlmIoPanel } from '@/components/panels/LlmIoPanel';
 
 type Tab = 'snapshot' | 'last' | 'stream' | 'raw' | 'llm_io';
@@ -78,11 +79,25 @@ export const Inspector = () => {
     return null;
   }, [inspectorFocus]);
 
+  const runId = runStatus.runId ?? 'none';
+
+  const getDecisionId = (event: typeof events[number]) => {
+    const payload = event.payload as Record<string, unknown> | null | undefined;
+    const decisionId = payload?.decision_id;
+    return typeof decisionId === 'string' ? decisionId : null;
+  };
+
+  const getThoughtText = (event: typeof events[number]) => {
+    const payload = event.payload as Record<string, unknown> | null | undefined;
+    const thought = payload?.thought;
+    return typeof thought === 'string' ? thought : '';
+  };
+
   const matchesFocus = (event: typeof events[number]) => {
     if (!inspectorFocus) return false;
     if (inspectorFocus.eventId && event.event_id === inspectorFocus.eventId) return true;
     if (inspectorFocus.decisionId) {
-      const decisionId = (event as any).payload?.decision_id;
+      const decisionId = getDecisionId(event);
       return decisionId === inspectorFocus.decisionId;
     }
     return false;
@@ -210,7 +225,7 @@ export const Inspector = () => {
                         </span>
                         <span className="truncate flex-1 opacity-70">
                           {isThought
-                            ? (event.payload as any).thought
+                            ? getThoughtText(event)
                             : JSON.stringify(event.payload).slice(0, 100)}
                         </span>
                       </div>
@@ -229,7 +244,7 @@ export const Inspector = () => {
 
             {inspectorTab === 'llm_io' && (
               <div className="flex-1 min-h-0">
-                <LlmIoPanel />
+                <LlmIoPanel key={`llm-io-${runId}`} />
               </div>
             )}
           </div>

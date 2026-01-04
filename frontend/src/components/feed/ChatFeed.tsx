@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type UIEvent } from 'react';
 import type { Event } from '@/net/contracts';
 import { useGameStore } from '@/state/store';
-import { cn, NeoBadge } from '@/components/ui/NeoPrimitive';
+import { NeoBadge } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 import { getPlayerColor } from '@/domain/monopoly/colors';
 import { formatCardTitle, formatMoney, formatSpaceLabel } from '@/domain/monopoly/formatters';
 import { SPACE_INDEX_BY_KEY } from '@/domain/monopoly/constants';
@@ -94,13 +95,24 @@ const summarizeTradeBundle = (bundle: { cash?: number; properties?: string[]; ge
   return parts.length ? parts.join(' + ') : 'none';
 };
 
+const extractPayloadPlayerId = (payload: Record<string, unknown> | null | undefined) => {
+  if (!payload) return null;
+  const playerId = payload.player_id;
+  if (typeof playerId === 'string') return playerId;
+  const fromPlayerId = payload.from_player_id;
+  if (typeof fromPlayerId === 'string') return fromPlayerId;
+  const bidderPlayerId = payload.bidder_player_id;
+  if (typeof bidderPlayerId === 'string') return bidderPlayerId;
+  const initiatorPlayerId = payload.initiator_player_id;
+  if (typeof initiatorPlayerId === 'string') return initiatorPlayerId;
+  return null;
+};
+
 const extractTurnPlayerId = (events: Event[]): string | null => {
   for (const event of events) {
-    const payload = event.payload as any;
-    if (payload?.player_id) return payload.player_id;
-    if (payload?.from_player_id) return payload.from_player_id;
-    if (payload?.bidder_player_id) return payload.bidder_player_id;
-    if (payload?.initiator_player_id) return payload.initiator_player_id;
+    const payload = event.payload as Record<string, unknown> | null | undefined;
+    const payloadPlayerId = extractPayloadPlayerId(payload);
+    if (payloadPlayerId) return payloadPlayerId;
     if (event.actor?.player_id) return event.actor.player_id;
   }
   return null;
@@ -569,7 +581,6 @@ export const ChatFeed = () => {
   const players = useGameStore((state) => state.runStatus.players ?? []);
   const setInspectorOpen = useGameStore((state) => state.setInspectorOpen);
   const setInspectorFocus = useGameStore((state) => state.setInspectorFocus);
-  const logResetId = useGameStore((state) => state.logResetId);
   const containerRef = useRef<HTMLDivElement>(null);
   const [showThoughts, setShowThoughts] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -597,10 +608,6 @@ export const ChatFeed = () => {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [autoScroll, turnBlocks]);
-
-  useEffect(() => {
-    setAutoScroll(true);
-  }, [logResetId]);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;

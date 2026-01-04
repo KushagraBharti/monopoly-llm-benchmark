@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Event } from '@/net/contracts';
 import { useGameStore } from '@/state/store';
 import { getPlayerIndex } from '@/domain/monopoly/colors';
-import { cn } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 
 type PrivateThoughtEvent = Extract<Event, { type: 'LLM_PRIVATE_THOUGHT' }>;
 
@@ -84,24 +84,21 @@ export const ThoughtsPanel = () => {
   }, [snapshot, runStatus.players]);
 
   const [activePlayerId, setActivePlayerId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (players.length === 0) {
-      setActivePlayerId(null);
-      return;
+  const resolvedActivePlayerId = useMemo(() => {
+    if (players.length === 0) return null;
+    if (activePlayerId && players.some((player) => player.playerId === activePlayerId)) {
+      return activePlayerId;
     }
-    if (!activePlayerId || !players.some((player) => player.playerId === activePlayerId)) {
-      setActivePlayerId(players[0].playerId);
-    }
+    return players[0].playerId;
   }, [players, activePlayerId]);
 
   const thoughts = useMemo(() => {
-    if (!activePlayerId) return [];
-    const entries = buildThoughtEntries(events, activePlayerId);
+    if (!resolvedActivePlayerId) return [];
+    const entries = buildThoughtEntries(events, resolvedActivePlayerId);
     return groupThoughts(entries);
-  }, [events, activePlayerId]);
+  }, [events, resolvedActivePlayerId]);
 
-  const activeName = players.find((player) => player.playerId === activePlayerId)?.name ?? 'Player';
+  const activeName = players.find((player) => player.playerId === resolvedActivePlayerId)?.name ?? 'Player';
 
   if (players.length === 0) {
     return null;
@@ -130,7 +127,7 @@ export const ThoughtsPanel = () => {
                 onClick={() => setActivePlayerId(player.playerId)}
                 className={cn(
                   'px-2 py-0.5 text-[9px] font-bold uppercase border border-gray-300 rounded-sm',
-                  activePlayerId === player.playerId
+                  resolvedActivePlayerId === player.playerId
                     ? 'bg-black text-white border-black'
                     : 'bg-white text-gray-700 hover:border-gray-500'
                 )}

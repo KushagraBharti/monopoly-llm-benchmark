@@ -130,19 +130,20 @@ class LlmRunner:
         snapshot_handler = on_snapshot
         summary_handler = on_summary
         if self._run_files is not None:
+            run_files = self._run_files
             if event_handler is None:
                 async def _write_event(event: dict[str, Any]) -> None:
-                    self._run_files.write_event(event)
+                    run_files.write_event(event)
 
                 event_handler = _write_event
             if snapshot_handler is None:
                 async def _write_snapshot(snapshot: dict[str, Any]) -> None:
-                    self._run_files.write_snapshot(snapshot)
+                    run_files.write_snapshot(snapshot)
 
                 snapshot_handler = _write_snapshot
             if summary_handler is None:
                 async def _write_summary(summary: dict[str, Any]) -> None:
-                    self._run_files.write_summary(summary)
+                    run_files.write_summary(summary)
 
                 summary_handler = _write_summary
         try:
@@ -329,10 +330,10 @@ class LlmRunner:
                 )
 
         if not tools:
-            action = self._fallback_action(decision)
+            fallback_action = self._fallback_action(decision)
             outcome = self._build_decision_outcome(
                 decision=decision,
-                action=action,
+                action=fallback_action,
                 attempts=attempts,
                 retry_used=False,
                 fallback_used=True,
@@ -369,16 +370,21 @@ class LlmRunner:
                 prompt_payload_raw=prompt_bundle.user_content,
             )
         )
-        openrouter_kwargs = (
-            {"reasoning": player_config.reasoning} if player_config.reasoning is not None else {}
-        )
-        result = await self._openrouter.create_chat_completion(
-            model=player_config.openrouter_model_id,
-            messages=prompt_bundle.messages,
-            tools=tools,
-            tool_choice="required",
-            **openrouter_kwargs,
-        )
+        if player_config.reasoning is not None:
+            result = await self._openrouter.create_chat_completion(
+                model=player_config.openrouter_model_id,
+                messages=prompt_bundle.messages,
+                tools=tools,
+                tool_choice="required",
+                reasoning=player_config.reasoning,
+            )
+        else:
+            result = await self._openrouter.create_chat_completion(
+                model=player_config.openrouter_model_id,
+                messages=prompt_bundle.messages,
+                tools=tools,
+                tool_choice="required",
+            )
         response_end_ms = _now_ms()
         attempt = self._attempt_from_response(
             prompt_bundle,
@@ -422,13 +428,21 @@ class LlmRunner:
                 retry_errors=errors,
             )
             retry_start_ms = _now_ms()
-            retry_result = await self._openrouter.create_chat_completion(
-                model=player_config.openrouter_model_id,
-                messages=retry_bundle.messages,
-                tools=tools,
-                tool_choice="required",
-                **openrouter_kwargs,
-            )
+            if player_config.reasoning is not None:
+                retry_result = await self._openrouter.create_chat_completion(
+                    model=player_config.openrouter_model_id,
+                    messages=retry_bundle.messages,
+                    tools=tools,
+                    tool_choice="required",
+                    reasoning=player_config.reasoning,
+                )
+            else:
+                retry_result = await self._openrouter.create_chat_completion(
+                    model=player_config.openrouter_model_id,
+                    messages=retry_bundle.messages,
+                    tools=tools,
+                    tool_choice="required",
+                )
             retry_end_ms = _now_ms()
             retry_attempt = self._attempt_from_response(
                 retry_bundle,
@@ -682,7 +696,11 @@ class LlmRunner:
         if action_events is not None:
             event_ids = [event.get("event_id") for event in action_events]
             event_types = [event.get("type") for event in action_events]
-            seqs = [event.get("seq") for event in action_events if isinstance(event.get("seq"), int)]
+            seqs: list[int] = []
+            for event in action_events:
+                seq = event.get("seq")
+                if isinstance(seq, int):
+                    seqs.append(seq)
             entry["emitted_event_ids"] = event_ids
             entry["emitted_event_types"] = event_types
             if seqs:
@@ -720,27 +738,26 @@ class LlmRunner:
             current_high_bid = int(auction.get("current_high_bid", 0) or 0)
             min_next_bid = current_high_bid + 1
             player_cash = None
+            action_name = "NOOP"
+            auction_args: dict[str, Any] = {"reason": "fallback"}
             for player in decision.get("state", {}).get("players", []):
                 if player.get("player_id") == decision.get("player_id"):
                     player_cash = int(player.get("cash", 0))
                     break
             if "bid_auction" in legal_actions and player_cash is not None and player_cash >= min_next_bid:
                 action_name = "bid_auction"
-                args = {"bid_amount": min_next_bid}
+                auction_args = {"bid_amount": min_next_bid}
             elif "drop_out" in legal_actions:
                 action_name = "drop_out"
-                args = {}
+                auction_args = {}
             elif legal_actions:
                 action_name = legal_actions[0]
-                args = {}
-            else:
-                action_name = "NOOP"
-                args = {"reason": "fallback"}
+                auction_args = {}
             return {
                 "schema_version": "v1",
                 "decision_id": decision_id,
                 "action": action_name,
-                "args": args,
+                "args": auction_args,
             }
         if decision.get("decision_type") == "TRADE_RESPONSE_DECISION":
             if "reject_trade" in legal_actions:
@@ -795,7 +812,10 @@ class LlmRunner:
             if space_key is None:
                 return None
             board = decision.get("state", {}).get("board", [])
-            matching = next((space for space in board if space.get("index") == indices[0]), {})
+            matching: dict[str, Any] = next(
+                (space for space in board if space.get("index") == indices[0]),
+                {},
+            )
             houses = int(matching.get("houses", 0))
             hotel = bool(matching.get("hotel", False))
             kind = "HOTEL" if hotel or houses >= 4 else "HOUSE"
@@ -808,11 +828,16 @@ class LlmRunner:
             if space_key is None:
                 return None
             board = decision.get("state", {}).get("board", [])
-            matching = next((space for space in board if space.get("index") == indices[0]), {})
+            matching: dict[str, Any] = next(
+                (space for space in board if space.get("index") == indices[0]),
+                {},
+            )
             hotel = bool(matching.get("hotel", False))
             kind = "HOTEL" if hotel else "HOUSE"
             return {"sell_plan": [{"space_key": space_key, "kind": kind, "count": 1}]}
 
+        action_name = "NOOP"
+        args: dict[str, Any] = {"reason": "fallback"}
         if "buy_property" in legal_actions:
             action_name = "buy_property"
             args = {}
@@ -869,10 +894,6 @@ class LlmRunner:
         elif legal_actions:
             action_name = legal_actions[0]
             args = {}
-        else:
-            action_name = "NOOP"
-            args = {"reason": "fallback"}
-
         return {
             "schema_version": "v1",
             "decision_id": decision_id,
@@ -907,6 +928,8 @@ def _map_openrouter_error(error_type: str | None) -> str:
         "network_error": "openrouter_network_error",
         "invalid_json": "invalid_tool_call",
     }
+    if error_type is None:
+        return "unknown"
     return mapping.get(error_type, "unknown")
 
 

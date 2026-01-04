@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameStore } from '@/state/store';
 import { CardModal } from '@/components/board/CardModal';
 import { PropertyToast } from '@/components/board/PropertyToast';
@@ -99,20 +100,20 @@ export const BoardEffectsLayer = () => {
         }
     }, [events.length]);
 
-    const getBoardRect = () => {
+    const getBoardRect = useCallback(() => {
         const el = document.querySelector('[data-board-root="true"]') as HTMLElement | null;
         return el ? el.getBoundingClientRect() : null;
-    };
+    }, []);
 
-    const getBoardCenter = () => {
+    const getBoardCenter = useCallback(() => {
         const rect = getBoardRect();
         if (!rect) {
             return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
         }
         return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    };
+    }, [getBoardRect]);
 
-    const getBoardPoint = (spaceIndex: number): { x: number; y: number } => {
+    const getBoardPoint = useCallback((spaceIndex: number): { x: number; y: number } => {
         const boardRect = getBoardRect();
         if (!boardRect) {
             return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
@@ -122,9 +123,9 @@ export const BoardEffectsLayer = () => {
             x: boardRect.left + (x / 100) * boardRect.width,
             y: boardRect.top + (y / 100) * boardRect.height,
         };
-    };
+    }, [getBoardRect]);
 
-    const getPlayerAnchor = (playerId: string | null | undefined): { x: number; y: number } | null => {
+    const getPlayerAnchor = useCallback((playerId: string | null | undefined): { x: number; y: number } | null => {
         if (!playerId) return null;
         const el = document.querySelector(`[data-player-card-id="${playerId}"]`) as HTMLElement | null;
         if (!el) return null;
@@ -133,13 +134,13 @@ export const BoardEffectsLayer = () => {
             x: rect.left + rect.width * 0.5,
             y: rect.top + rect.height * 0.45,
         };
-    };
+    }, []);
 
-    const getPlayerPosition = (playerId: string | null | undefined): number | null => {
+    const getPlayerPosition = useCallback((playerId: string | null | undefined): number | null => {
         if (!playerId) return null;
         const player = snapshot?.players.find((entry) => entry.player_id === playerId);
         return player?.position ?? null;
-    };
+    }, [snapshot]);
 
     const addCashToast = (payload: CashToast) => {
         setCashToasts((prev) => [...prev, payload]);
@@ -291,7 +292,7 @@ export const BoardEffectsLayer = () => {
         if (newItems.length) {
             setQueue((prev) => [...prev, ...newItems]);
         }
-    }, [events, snapshot]);
+    }, [events, snapshot, runId, getBoardCenter, getBoardPoint, getPlayerPosition, getPlayerAnchor]);
 
     useEffect(() => {
         if (activeItem || queue.length === 0) return;

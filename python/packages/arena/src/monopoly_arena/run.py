@@ -4,7 +4,6 @@ import argparse
 import asyncio
 import hashlib
 import json
-from pathlib import Path
 from typing import Any
 
 from monopoly_telemetry import init_run_files

@@ -1,6 +1,8 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameStore } from '@/state/store';
-import { cn, NeoBadge } from '@/components/ui/NeoPrimitive';
+import { NeoBadge } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 import { getPlayerColor } from '@/domain/monopoly/colors';
 import type { DecisionAttempt, DecisionBundle, DecisionSummary } from '@/net/decisions';
 import { fetchDecisionBundle, fetchDecisionList } from '@/net/decisions';
@@ -273,6 +275,7 @@ export const LlmIoPanel = () => {
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
   const selectedDecisionRef = useRef<string | null>(selectedDecisionId);
+  const activeBundle = selectedDecisionId ? bundle : null;
 
   const playerNames = useMemo(() => {
     const map = new Map<string, string>();
@@ -287,11 +290,7 @@ export const LlmIoPanel = () => {
   }, [selectedDecisionId]);
 
   useEffect(() => {
-    if (!runId) {
-      setDecisions([]);
-      setSelectedDecisionId(null);
-      return;
-    }
+    if (!runId) return;
     let active = true;
     setLoadingDecisions(true);
     setDecisionError(null);
@@ -323,10 +322,7 @@ export const LlmIoPanel = () => {
   }, [runId, setSelectedDecisionId]);
 
   useEffect(() => {
-    if (!runId || !selectedDecisionId) {
-      setBundle(null);
-      return;
-    }
+    if (!runId || !selectedDecisionId) return;
     let active = true;
     setLoadingBundle(true);
     setBundleError(null);
@@ -350,8 +346,8 @@ export const LlmIoPanel = () => {
   }, [runId, selectedDecisionId]);
 
   useEffect(() => {
-    if (!bundle) return;
-    const attemptIndices = bundle.attempts.map((attempt) => attempt.attempt_index);
+    if (!activeBundle) return;
+    const attemptIndices = activeBundle.attempts.map((attempt) => attempt.attempt_index);
     if (!attemptIndices.length) return;
     const latest = attemptIndices[attemptIndices.length - 1];
     if (selectedAttempt === null || !attemptIndices.includes(selectedAttempt)) {
@@ -368,7 +364,7 @@ export const LlmIoPanel = () => {
       setCompareAttempts(nextA, nextB);
     }
   }, [
-    bundle,
+    activeBundle,
     selectedAttempt,
     setSelectedAttempt,
     compareMode,
@@ -395,10 +391,10 @@ export const LlmIoPanel = () => {
     };
   }, [copyNotice]);
 
-  const attemptMap = useMemo(() => buildAttemptMap(bundle?.attempts ?? []), [bundle]);
+  const attemptMap = useMemo(() => buildAttemptMap(activeBundle?.attempts ?? []), [activeBundle]);
   const attemptIndices = useMemo(
-    () => (bundle?.attempts ?? []).map((attempt) => attempt.attempt_index),
-    [bundle]
+    () => (activeBundle?.attempts ?? []).map((attempt) => attempt.attempt_index),
+    [activeBundle]
   );
   const latestAttempt = attemptIndices.length ? attemptIndices[attemptIndices.length - 1] : null;
   const selectedAttemptItem = selectedAttempt !== null ? attemptMap.get(selectedAttempt) : undefined;
@@ -477,7 +473,7 @@ export const LlmIoPanel = () => {
   const rightParsed = formatJson(selectedAttemptItem?.parsed_tool_call);
   const rightErrors = normalizeErrors(selectedAttemptItem?.validation_errors ?? null);
   const rightToolAction = formatJson(selectedAttemptItem?.tool_action);
-  const finalAction = formatJson(bundle?.final_action ?? null);
+  const finalAction = formatJson(activeBundle?.final_action ?? null);
 
   const attemptA = compareAttemptA !== null ? attemptMap.get(compareAttemptA) : undefined;
   const attemptB = compareAttemptB !== null ? attemptMap.get(compareAttemptB) : undefined;
@@ -530,17 +526,17 @@ export const LlmIoPanel = () => {
             <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-2 border-b-2 border-black bg-neo-bg">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase">LLM I/O</span>
-                {bundle?.summary?.decision_type && (
+                {activeBundle?.summary?.decision_type && (
                   <NeoBadge variant="neutral" className="text-[8px] py-0 px-1">
-                    {bundle.summary.decision_type}
+                    {activeBundle.summary.decision_type}
                   </NeoBadge>
                 )}
-                {bundle?.retry_used && (
+                {activeBundle?.retry_used && (
                   <NeoBadge variant="warning" className="text-[8px] py-0 px-1">
                     RETRY
                   </NeoBadge>
                 )}
-                {bundle?.fallback_used && (
+                {activeBundle?.fallback_used && (
                   <NeoBadge variant="error" className="text-[8px] py-0 px-1">
                     FALLBACK
                   </NeoBadge>
@@ -581,13 +577,13 @@ export const LlmIoPanel = () => {
             {bundleError && <div className="p-3 text-[11px] text-neo-pink">{bundleError}</div>}
           </div>
 
-          {!loadingBundle && !bundleError && !bundle && (
+          {!loadingBundle && !bundleError && !activeBundle && (
             <div className="flex-1 flex items-center justify-center text-sm text-gray-500">
               Select a decision to inspect.
             </div>
           )}
 
-          {bundle && !compareMode && (
+          {activeBundle && !compareMode && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0">
               <div className="flex flex-col gap-3 min-h-0 overflow-y-auto pr-1 brutal-scroll">
                 <ArtifactSection title="System Prompt" value={leftSystem} onCopied={setCopyNotice} />
@@ -604,7 +600,7 @@ export const LlmIoPanel = () => {
             </div>
           )}
 
-          {bundle && compareMode && (
+          {activeBundle && compareMode && (
             <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto brutal-scroll pr-1">
               <div className="border-2 border-black bg-white shadow-neo-sm">
                 <div className="flex flex-wrap items-center gap-3 px-2 py-2 border-b-2 border-black bg-neo-bg">

@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { useGameStore } from '@/state/store';
 import { getPlayerColor, getPlayerInitials } from '@/domain/monopoly/colors';
 import { selectLeaderboard } from '@/domain/monopoly/selectors';
-import { NeoBadge, NeoCard, cn } from '@/components/ui/NeoPrimitive';
+import { NeoBadge, NeoCard } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 
 export const PlayerPanel = () => {
   const snapshot = useGameStore((state) => state.snapshot);

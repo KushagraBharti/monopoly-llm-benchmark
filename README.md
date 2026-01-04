@@ -52,21 +52,22 @@ For development and change-management rules, see `AGENTS.md`.
 
 ---
 
-## Architecture (one diagram)
+## Architecture
 
 ```
-Frontend (React)  <---- WebSocket: HELLO/SNAPSHOT/EVENT ----  API (FastAPI)
-   |                                                         |
-   | HTTP: /run/start, /run/stop, /run/status, /runs/...      | owns RunManager
-   v                                                         v
-Inspector UI <---- reads decision bundles / prompt artifacts  Arena (LlmRunner)
-                                                           |
-                                                           | OpenRouter chat.completions (tools)
-                                                           v
-                                                    Engine (deterministic)
-                                                           |
-                                                           v
-                                                    Telemetry (runs/<run_id>/)
+Frontend (React) <---- WS: HELLO / SNAPSHOT / EVENT --------> API (FastAPI)
+     |                                                          | owns RunManager
+     v                                                          v
+Inspector UI <----- reads decisions + prompt artifacts -----> Arena (LlmRunner)
+                                                                |
+                                                                v
+                                              OpenRouter (chat.completions + tools)
+                                                                |
+                                                                v
+                                                      Engine (deterministic)
+                                                                |
+                                                                v
+                                                Telemetry writer (runs/<run_id>/)
 ```
 
 ---
@@ -191,80 +192,16 @@ At runtime, the system loops like this:
 
 ---
 
-### Everything past this is just a deeper dive into everything (can ignore):
+## Repo layout
 
-## API and WebSocket
-
-### HTTP endpoints (backend)
-- `GET /health` -> `{"ok": true}`
-- `POST /run/start` -> starts a new run (seed optional; players optional overrides)
-- `POST /run/stop` -> stops the current run
-- `POST /run/pause` / `POST /run/resume` -> pauses/resumes the runner loop
-- `GET /run/status` -> current run status (run_id, turn index, players, paused/running)
-- `GET /runs/{run_id}/decisions` -> list decisions for a run (for inspector)
-- `GET /runs/{run_id}/decisions/{decision_id}` -> decision bundle with prompt/response artifacts
-
-### WebSocket endpoint
-- `/ws` streams a simple envelope with these message types:
-  - `HELLO` (server time + current `run_id`)
-  - `SNAPSHOT` (full state snapshot payload)
-  - `EVENT` (single event payload)
-  - `ERROR` (string message + optional details)
-
----
-
-## Run artifacts (dataset format)
-
-Each run writes to `runs/<run_id>/` (local filesystem; no database).
-
-### `events.jsonl`
-Canonical, append-only event stream. Each event has:
-- `seq` (strictly increasing)
-- `turn_index`
-- `actor` (`ENGINE` or `PLAYER`)
-- `type` + `payload`
-
-### `actions.jsonl`
-Append-only log of chosen actions applied to decisions. Intended for replay.
-
-### `decisions.jsonl`
-Decision log with `phase` entries:
-- `decision_started`: prompt payload + tools schema + timing start
-- `decision_resolved`: attempts, validation errors, retry/fallback flags, timing end, and emitted event ranges
-
-### `prompts/`
-Per-decision artifacts for inspection:
-- `decision_<id>_system.txt`
-- `decision_<id>_user.json`
-- `decision_<id>_tools.json`
-- `decision_<id>_response.json`
-- `decision_<id>_parsed.json`
-
-Retries use `decision_<id>_retry1_*` filenames.
-
-### `state/`
-Full snapshots by turn:
-- `turn_XXXX.json` is canonical and never overwritten.
-- additional snapshots during decision time are written as variants (e.g. `turn_XXXX_decision_0001.json`).
-
-### `summary.json`
-End-of-run summary derived from logs (winner, turn count, per-player summary, decision stats, acquisition timeline, and token usage/cost when available).
-
----
-
-## Replay and determinism
-
-Determinism comes from:
-- deterministic RNG (`seed`)
-- strictly ordered event sequencing (`seq`)
-- timestamps derived from counters (not wall clock)
-
-**Important:** decision logs include wall-clock timestamps for observability. Do not treat `decisions.jsonl` as a deterministic artifact.
-
-Replay support exists in:
-- `python/packages/engine/src/monopoly_engine/replay.py`
-
----
+- `contracts/`: schemas + TS types + examples + board spec
+- `frontend/`: render-only UI (React/Vite)
+- `python/packages/engine`: deterministic Monopoly rules engine
+- `python/packages/arena`: OpenRouter orchestration + prompting + strict validation + retries/fallbacks
+- `python/packages/telemetry`: run folder management + writers + summary builder
+- `python/apps/api`: FastAPI + WebSocket server
+- `scripts/`: verification scripts
+- `runs/`: output artifacts (generated)
 
 ## Contracts (schemas and types)
 
@@ -307,54 +244,15 @@ uv run ruff check .
 uv run mypy .
 ```
 
----
-
-## Troubleshooting
-
-### WebSocket shows OFFLINE
-- Confirm backend is running: `GET /health`.
-- Confirm UI is using the right base URL:
-  - `VITE_API_BASE` (optional) and `VITE_WS_URL` (optional)
-  - defaults assume backend on port 8000.
-
-### Runs instantly fallback on every decision
-- `OPENROUTER_API_KEY` missing or invalid.
-- Look at `runs/<run_id>/decisions.jsonl` and `prompts/*_response.json`.
-
-### Determinism/replay mismatch
-- Compare canonicalized event streams.
-- Ensure you’re replaying with the same seed, players, and engine settings.
-
----
-
-## Repo layout
-
-- `contracts/`: schemas + TS types + examples + board spec
-- `frontend/`: render-only UI (React/Vite)
-- `python/packages/engine`: deterministic Monopoly rules engine
-- `python/packages/arena`: OpenRouter orchestration + prompting + strict validation + retries/fallbacks
-- `python/packages/telemetry`: run folder management + writers + summary builder
-- `python/apps/api`: FastAPI + WebSocket server
-- `scripts/`: verification scripts
-- `runs/`: output artifacts (generated)
-
----
-
-## Contributing
-
-High-signal contributions are welcome. Please:
-- Keep changes focused (small, reviewable diffs).
-- Update contracts when protocol shapes change.
-- Add tests for engine edge cases and determinism.
-- Never commit secrets; use `.env` locally.
-
-Before submitting:
-- run `pwsh -File scripts/verify.ps1`
-
-For deeper contributor guidance and invariants, read `AGENTS.md`.
-
----
-
 ## License
 
-This repository does **not** currently include a `LICENSE` file. If you intend to publish/redistribute, add an explicit license first.
+This project is licensed under the Apache License 2.0. See Details at [LICENSE](LICENSE)
+
+## Citation
+
+If you use MonopolyBench in academic work, please cite:
+
+Kushagra Bharti. *MonopolyBench: A Multi-Agent LLM Benchmark for Monopoly.*  
+GitHub repository, 2026.
+
+A BibTeX entry is available via [CITATION.cff](CITATION.cff)

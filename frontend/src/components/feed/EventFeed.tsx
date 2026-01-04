@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Event } from '@/net/contracts';
 import { useGameStore } from '@/state/store';
-import { cn, NeoBadge } from '@/components/ui/NeoPrimitive';
+import { NeoBadge } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 import { getPlayerColor } from '@/domain/monopoly/colors';
 import {
   formatEventCard,

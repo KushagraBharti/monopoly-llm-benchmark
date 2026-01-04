@@ -214,25 +214,25 @@ class Engine:
                 space = self.state.board[space_index]
                 self._apply_property_purchase(player, space, events)
             elif action_name == "start_auction":
-                decision = self._start_auction(
+                next_decision = self._start_auction(
                     player,
                     space_index,
                     events,
                     rolled_double=rolled_double,
                 )
                 snapshot = self.get_snapshot()
-                if decision is not None:
-                    return self.state, events, decision, snapshot
+                if next_decision is not None:
+                    return self.state, events, next_decision, snapshot
             else:
                 raise ValueError(f"Unsupported action: {action_name}")
-            decision = self._maybe_start_post_turn_decision(
+            next_decision = self._maybe_start_post_turn_decision(
                 events,
                 player,
                 rolled_double=rolled_double,
             )
             snapshot = self.get_snapshot()
-            if decision is not None:
-                return self.state, events, decision, snapshot
+            if next_decision is not None:
+                return self.state, events, next_decision, snapshot
             if self._should_end_game():
                 self._finish_game(events)
                 snapshot = self.get_snapshot()
@@ -249,10 +249,10 @@ class Engine:
                 )
                 player.in_jail = False
                 player.jail_turns = 0
-                decision = self._roll_and_move(player, events, turn_index=self.state.turn_index)
+                next_decision = self._roll_and_move(player, events, turn_index=self.state.turn_index)
                 snapshot = self.get_snapshot()
-                if decision is not None:
-                    return self.state, events, decision, snapshot
+                if next_decision is not None:
+                    return self.state, events, next_decision, snapshot
                 if self._should_end_game():
                     self._finish_game(events)
                     snapshot = self.get_snapshot()
@@ -265,10 +265,10 @@ class Engine:
                 self._return_jail_card(player)
                 player.in_jail = False
                 player.jail_turns = 0
-                decision = self._roll_and_move(player, events, turn_index=self.state.turn_index)
+                next_decision = self._roll_and_move(player, events, turn_index=self.state.turn_index)
                 snapshot = self.get_snapshot()
-                if decision is not None:
-                    return self.state, events, decision, snapshot
+                if next_decision is not None:
+                    return self.state, events, next_decision, snapshot
                 if self._should_end_game():
                     self._finish_game(events)
                     snapshot = self.get_snapshot()
@@ -332,7 +332,7 @@ class Engine:
                 player.in_jail = False
                 player.jail_turns = 0
                 player.doubles_count = 0
-                decision, decision_space_index = self._move_player(
+                move_decision, decision_space_index = self._move_player(
                     player,
                     d1 + d2,
                     events,
@@ -340,9 +340,9 @@ class Engine:
                     rolled_double=False,
                 )
                 snapshot = self.get_snapshot()
-                if decision is not None:
+                if move_decision is not None:
                     self.state.phase = "AWAITING_DECISION"
-                    self._pending_decision = decision
+                    self._pending_decision = move_decision
                     self._pending_turn = {
                         "rolled_double": False,
                         "space_index": (
@@ -357,22 +357,22 @@ class Engine:
                             "LLM_DECISION_REQUESTED",
                             self._actor_engine(),
                             {
-                                "decision_id": decision["decision_id"],
+                                "decision_id": move_decision["decision_id"],
                                 "player_id": player.player_id,
-                                "decision_type": decision["decision_type"],
+                                "decision_type": move_decision["decision_type"],
                             },
                             turn_index=self.state.turn_index,
                         )
                     )
-                    return self.state, events, decision, snapshot
-                decision = self._maybe_start_post_turn_decision(
+                    return self.state, events, move_decision, snapshot
+                next_decision = self._maybe_start_post_turn_decision(
                     events,
                     player,
                     rolled_double=False,
                 )
                 snapshot = self.get_snapshot()
-                if decision is not None:
-                    return self.state, events, decision, snapshot
+                if next_decision is not None:
+                    return self.state, events, next_decision, snapshot
                 if self._should_end_game():
                     self._finish_game(events)
                     snapshot = self.get_snapshot()
@@ -477,10 +477,10 @@ class Engine:
                 return self.state, events, None, snapshot
 
             if action_name == "counter_trade":
-                decision = self._apply_trade_counter(player, trade, action, events)
+                next_decision = self._apply_trade_counter(player, trade, action, events)
                 snapshot = self.get_snapshot()
-                if decision is not None:
-                    return self.state, events, decision, snapshot
+                if next_decision is not None:
+                    return self.state, events, next_decision, snapshot
                 if self._should_end_game():
                     self._finish_game(events)
                     snapshot = self.get_snapshot()
@@ -501,10 +501,10 @@ class Engine:
             elif action_name == "sell_houses_or_hotel":
                 self._apply_sell_plan(player, action, events)
             elif action_name == "propose_trade":
-                decision = self._start_trade(player, action, events, rolled_double=rolled_double)
+                next_decision = self._start_trade(player, action, events, rolled_double=rolled_double)
                 snapshot = self.get_snapshot()
-                if decision is not None:
-                    return self.state, events, decision, snapshot
+                if next_decision is not None:
+                    return self.state, events, next_decision, snapshot
             else:
                 raise ValueError(f"Unsupported action: {action_name}")
 
@@ -542,10 +542,10 @@ class Engine:
             else:
                 raise ValueError(f"Unsupported action: {action_name}")
 
-            decision = self._resolve_pending_payment(player, events, turn_index=self.state.turn_index)
+            next_decision = self._resolve_pending_payment(player, events, turn_index=self.state.turn_index)
             snapshot = self.get_snapshot()
-            if decision is not None:
-                return self.state, events, decision, snapshot
+            if next_decision is not None:
+                return self.state, events, next_decision, snapshot
             if self._should_end_game():
                 self._finish_game(events)
                 snapshot = self.get_snapshot()
@@ -583,23 +583,23 @@ class Engine:
                 current_player.jail_turns = 0
                 self._end_turn(events, current_player, allow_extra_turn=False)
                 return events, None
-            decision = self._build_jail_decision(current_player)
+            jail_decision = self._build_jail_decision(current_player)
             self.state.phase = "AWAITING_DECISION"
-            self._pending_decision = decision
+            self._pending_decision = jail_decision
             self._pending_turn = {"player_id": current_id, "decision_type": "JAIL_DECISION"}
             events.append(
                 self._build_event(
                     "LLM_DECISION_REQUESTED",
                     self._actor_engine(),
                     {
-                        "decision_id": decision["decision_id"],
+                        "decision_id": jail_decision["decision_id"],
                         "player_id": current_id,
-                        "decision_type": decision["decision_type"],
+                        "decision_type": jail_decision["decision_type"],
                     },
                     turn_index=turn_index,
                 )
             )
-            return events, decision
+            return events, jail_decision
 
         d1, d2 = self._rng.roll_dice()
         is_double = d1 == d2
@@ -632,16 +632,16 @@ class Engine:
             self._end_turn(events, current_player, allow_extra_turn=False)
             return events, None
 
-        decision, decision_space_index = self._move_player(
+        move_decision, decision_space_index = self._move_player(
             current_player,
             d1 + d2,
             events,
             turn_index=turn_index,
             rolled_double=rolled_double,
         )
-        if decision is not None:
+        if move_decision is not None:
             self.state.phase = "AWAITING_DECISION"
-            self._pending_decision = decision
+            self._pending_decision = move_decision
             self._pending_turn = {
                 "rolled_double": rolled_double,
                 "space_index": (
@@ -654,14 +654,14 @@ class Engine:
                     "LLM_DECISION_REQUESTED",
                     self._actor_engine(),
                     {
-                        "decision_id": decision["decision_id"],
+                        "decision_id": move_decision["decision_id"],
                         "player_id": current_id,
-                        "decision_type": decision["decision_type"],
+                        "decision_type": move_decision["decision_type"],
                     },
                     turn_index=turn_index,
                 )
             )
-            return events, decision
+            return events, move_decision
 
         post_decision = self._maybe_start_post_turn_decision(
             events,
@@ -2333,9 +2333,9 @@ class Engine:
                 self._pending_payment = None
                 self._end_turn(events, payer, allow_extra_turn=False)
                 return None
-            decision = self._build_liquidation_decision(payer, payment, options=options)
+            liquidation_decision = self._build_liquidation_decision(payer, payment, options=options)
             self.state.phase = "AWAITING_DECISION"
-            self._pending_decision = decision
+            self._pending_decision = liquidation_decision
             self._pending_turn = {
                 "player_id": payer.player_id,
                 "decision_type": "LIQUIDATION_DECISION",
@@ -2346,26 +2346,26 @@ class Engine:
                     "LLM_DECISION_REQUESTED",
                     self._actor_engine(),
                     {
-                        "decision_id": decision["decision_id"],
+                        "decision_id": liquidation_decision["decision_id"],
                         "player_id": payer.player_id,
-                        "decision_type": decision["decision_type"],
+                        "decision_type": liquidation_decision["decision_type"],
                     },
                     turn_index=turn_index,
                 )
             )
-            return decision
+            return liquidation_decision
         self._apply_payment(payer, payment, events, turn_index=turn_index)
         self._pending_payment = None
-        decision = self._process_payment_queue(
+        next_decision = self._process_payment_queue(
             payer,
             remaining,
             events,
             turn_index=turn_index,
             rolled_double=rolled_double,
         )
-        if decision is not None:
+        if next_decision is not None:
             self.state.phase = "AWAITING_DECISION"
-            self._pending_decision = decision
+            self._pending_decision = next_decision
             self._pending_turn = {
                 "player_id": payer.player_id,
                 "decision_type": "LIQUIDATION_DECISION",
@@ -2376,14 +2376,14 @@ class Engine:
                     "LLM_DECISION_REQUESTED",
                     self._actor_engine(),
                     {
-                        "decision_id": decision["decision_id"],
+                        "decision_id": next_decision["decision_id"],
                         "player_id": payer.player_id,
-                        "decision_type": decision["decision_type"],
+                        "decision_type": next_decision["decision_type"],
                     },
                     turn_index=turn_index,
                 )
             )
-            return decision
+            return next_decision
         return self._maybe_start_post_turn_decision(
             events,
             payer,
@@ -3104,7 +3104,10 @@ class Engine:
         if action.get("action") not in allowed:
             return "Action not legal for decision"
         if action.get("action") in {"buy_property", "start_auction"}:
-            space_index = self._pending_turn.get("space_index")
+            pending_turn = self._pending_turn
+            if pending_turn is None:
+                return "Missing pending turn"
+            space_index = pending_turn.get("space_index")
             if space_index is None:
                 return "Missing pending space_index"
         if action.get("action") in {"mortgage_property", "unmortgage_property"}:
@@ -3132,7 +3135,10 @@ class Engine:
             min_next_bid = self.state.auction.current_high_bid + 1
             if bid_amount < min_next_bid:
                 return "Bid below minimum"
-            player = self._find_player(decision.get("player_id"))
+            player_id = decision.get("player_id")
+            if not isinstance(player_id, str):
+                return "Unknown bidder"
+            player = self._find_player(player_id)
             if player is None:
                 return "Unknown bidder"
             if player.cash < bid_amount:
@@ -3142,7 +3148,7 @@ class Engine:
                 idx = self.state.auction.current_bidder_index
                 if 0 <= idx < len(self.state.auction.active_bidders_player_ids):
                     current_bidder = self.state.auction.active_bidders_player_ids[idx]
-            if current_bidder and current_bidder != decision.get("player_id"):
+            if current_bidder and current_bidder != player_id:
                 return "Not current bidder"
         if action.get("action") == "drop_out":
             if self.state.auction is None:

@@ -1,6 +1,7 @@
 import type { Space } from '@/net/contracts';
 import { getPlayerColor, getPlayerInitials } from '@/domain/monopoly/colors';
-import { NeoCard, cn } from '@/components/ui/NeoPrimitive';
+import { NeoCard } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 import { PropertyChip } from '@/components/panels/PropertyChip';
 
 const formatMoney = (value: number): string => {

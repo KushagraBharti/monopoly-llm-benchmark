@@ -10,7 +10,8 @@ import { GameControls } from '@/components/panels/GameControls';
 import { Inspector } from '@/components/panels/Inspector';
 import { AuctionPanel } from '@/components/panels/AuctionPanel';
 import { TradeInspectorPanel } from '@/components/panels/TradeInspectorPanel';
-import { NeoBadge, cn } from '@/components/ui/NeoPrimitive';
+import { NeoBadge } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 import { GO_INDEX, JAIL_INDEX } from '@/domain/monopoly/constants';
 import type { Event } from '@/net/contracts';
 
@@ -23,6 +24,7 @@ function App() {
   const snapshot = useGameStore((state) => state.snapshot);
   const connection = useGameStore((state) => state.connection);
   const runStatus = useGameStore((state) => state.runStatus);
+  const logResetId = useGameStore((state) => state.logResetId);
   const latestEvent = useGameStore((state) => state.events[0]);
   const apiBase = useMemo(() => getApiBaseUrl(), []);
   const highlightTimerRef = useRef<number | null>(null);
@@ -109,7 +111,7 @@ function App() {
         window.clearTimeout(highlightTimerRef.current);
       }
     };
-  }, [latestEvent?.event_id, setEventHighlight]);
+  }, [latestEvent, setEventHighlight]);
 
   // Status Derivation
   const isConnected = connection.status === 'connected';
@@ -233,7 +235,7 @@ function App() {
           </div>
         </div>
         <div className="flex-1 min-h-0 relative">
-          {rightTab === 'dev' ? <EventFeed /> : <ChatFeed />}
+          {rightTab === 'dev' ? <EventFeed /> : <ChatFeed key={`chat-${logResetId}`} />}
         </div>
       </aside>
 

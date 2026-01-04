@@ -1,10 +1,5 @@
 import { type ButtonHTMLAttributes, type HTMLAttributes, forwardRef } from 'react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-export function cn(...inputs: ClassValue[]) {
-    return twMerge(clsx(inputs));
-}
+import { cn } from '@/components/ui/cn';
 
 interface NeoProps extends HTMLAttributes<HTMLDivElement> {
     variant?: 'default' | 'flat' | 'bordered';

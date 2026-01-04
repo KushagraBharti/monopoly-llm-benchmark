@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { Space } from '@/net/contracts';
 import { getGroupColor } from '@/domain/monopoly/colors';
 
@@ -26,18 +26,18 @@ export const PropertyToast = ({
     const targetPos = target ?? { x: start.x + 140, y: start.y - 80 };
     const completedRef = useRef(false);
 
-    const triggerComplete = () => {
+    const triggerComplete = useCallback(() => {
         if (completedRef.current) return;
         completedRef.current = true;
         onComplete?.();
-    };
+    }, [onComplete]);
 
     useEffect(() => {
         if (!isVisible) return;
         completedRef.current = false;
         const timer = window.setTimeout(triggerComplete, 1200);
         return () => window.clearTimeout(timer);
-    }, [isVisible]);
+    }, [isVisible, triggerComplete]);
 
     return (
         <AnimatePresence>

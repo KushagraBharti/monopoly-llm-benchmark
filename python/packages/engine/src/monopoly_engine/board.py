@@ -105,7 +105,7 @@ HOUSE_COST_BY_GROUP: dict[str, int] = {
 OWNABLE_KINDS = {"PROPERTY", "RAILROAD", "UTILITY"}
 
 GROUP_INDEXES: dict[str, list[int]] = {}
-for index, kind, _, group, _ in BOARD_SPEC:
+for index, kind, _name, group, _price in BOARD_SPEC:
     if group:
         GROUP_INDEXES.setdefault(group, []).append(index)
 

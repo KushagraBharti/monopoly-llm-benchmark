@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { Space } from '@/net/contracts';
 import { Tile } from '@/components/board/Tile';
-import { cn } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 import { TokenLayer } from '@/components/board/TokenLayer';
 import { getGridPosition } from '@/components/board/utils';
 import { useGameStore, type StoreState } from '@/state/store';

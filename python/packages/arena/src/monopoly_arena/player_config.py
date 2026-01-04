@@ -65,7 +65,7 @@ class PlayerConfig:
     reasoning: dict[str, Any] | None
 
     def to_status(self) -> dict[str, Any]:
-        payload = {
+        payload: dict[str, Any] = {
             "player_id": self.player_id,
             "name": self.name,
             "openrouter_model_id": self.openrouter_model_id,

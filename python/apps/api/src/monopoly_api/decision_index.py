@@ -122,7 +122,7 @@ class DecisionIndex:
                 fallback_used = fallback_used if fallback_used is not None else parsed.get("fallback_used")
                 fallback_reason = fallback_reason if fallback_reason is not None else parsed.get("fallback_reason")
 
-        timing = {
+        timing: dict[str, int | None] = {
             "request_start_ms": None,
             "response_end_ms": None,
             "latency_ms": None,

@@ -1,6 +1,6 @@
 import type { Space } from '@/net/contracts';
 import { getGroupColor } from '@/domain/monopoly/colors';
-import { cn } from '@/components/ui/NeoPrimitive';
+import { cn } from '@/components/ui/cn';
 
 const formatChipLabel = (name: string): string => {
   const cleaned = name
