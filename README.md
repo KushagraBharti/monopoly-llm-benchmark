@@ -114,20 +114,14 @@ For repo boundaries and “don’t break the benchmark” rules (determinism, co
 
 ### Configuration
 
-1) Required
-- `OPENROUTER_API_KEY`
-
-2) Player configuration
-Default player configuration lives at:
-- `python/apps/api/src/monopoly_api/config/players.json`
+- Required: `OPENROUTER_API_KEY`
+- Default player configuration lives at: `python/apps/api/src/monopoly_api/config/players.json`
 
 ---
 
 ### 1) Configure environment
 
-1. repo root `.env`
-
-Minimal `.env` (repo root):
+Environment Variable file at repository root (`.env`):
 ```bash
 OPENROUTER_API_KEY=...
 ```
