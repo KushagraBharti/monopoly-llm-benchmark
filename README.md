@@ -112,6 +112,17 @@ For repo boundaries and “don’t break the benchmark” rules (determinism, co
 - Python via `uv` (workspace is under `python/`)
 - OpenRouter API key
 
+### Configuration
+
+1) Required
+- `OPENROUTER_API_KEY`
+
+2) Player configuration
+Default player configuration lives at:
+- `python/apps/api/src/monopoly_api/config/players.json`
+
+---
+
 ### 1) Configure environment
 
 1. repo root `.env`
@@ -166,17 +177,6 @@ yarn dev
 ```
 
 Open `http://localhost:5173`.
-
----
-
-## Configuration
-
-### Required
-- `OPENROUTER_API_KEY`
-
-### Player configuration
-Default player configuration lives at:
-- `python/apps/api/src/monopoly_api/config/players.json`
 
 ---
 
