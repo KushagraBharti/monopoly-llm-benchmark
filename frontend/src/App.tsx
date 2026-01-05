@@ -125,7 +125,7 @@ function App() {
       <aside className="w-137.5 h-full border-r-4 border-black bg-white flex flex-col z-30 shadow-neo-lg">
         <header className="p-1.5 border-b-2 border-black bg-gray-50 shrink-0">
           <h1 className="text-lg font-black uppercase tracking-tighter leading-none mb-0.5">
-            Monopoly <span className="text-neo-pink">Arena</span>
+            Monopoly <span className="text-neo-pink">Bench</span>
           </h1>
 
           <div className="flex flex-col gap-0.5 mt-0.5">

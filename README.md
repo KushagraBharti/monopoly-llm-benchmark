@@ -36,21 +36,7 @@ Future Implementations:
 
 ## Architecture
 
-```
-Frontend (React) <---- WS: HELLO / SNAPSHOT / EVENT --------> API (FastAPI)
-     |                                                          | owns RunManager
-     v                                                          v
-Inspector UI <----- reads decisions + prompt artifacts -----> Arena (LlmRunner)
-                                                                |
-                                                                v
-                                              OpenRouter (chat.completions + tools)
-                                                                |
-                                                                v
-                                                      Engine (deterministic)
-                                                                |
-                                                                v
-                                                Telemetry writer (runs/<run_id>/)
-```
+![MonopolyBench Architecture](benchmark_architecture.jpeg)
 
 ---
 
