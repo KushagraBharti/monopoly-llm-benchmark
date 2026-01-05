@@ -1,8 +1,8 @@
 cff-version: 1.2.0
-title: "MonopolyBench: A Reproducible Multi-Agent LLM Benchmark for Monopoly"
+title: "MonopolyBench: A Multi-Agent LLM Benchmark for Monopoly"
 authors:
   - family-names: Bharti
     given-names: Kushagra
 date-released: 2026-01-01
 license: Apache-2.0
-repository-code: https://github.com/yourusername/MonopolyBench
+repository-code: https://github.com/KushagraBharti/MonopolyBench
