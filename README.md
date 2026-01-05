@@ -21,6 +21,7 @@ Future Implementations:
 1. **TrueSkill** - A TrueSkill ranking system for LLMs playing Monopoly.
 2. **Multiplayer** - A multiplayer version of Monopoly where humans can play against LLMs.
 3. **Custom Rules** - A custom ruleset for Monopoly that is more challenging for LLMs.
+4. **Micro-Decisions** - A micro-decision suite to observe LLMs on specific interesting scenarios in Monopoly.
 
 ---
 
@@ -30,33 +31,6 @@ Future Implementations:
 - Watch the game live in a custom React UI fed by a FastAPI WebSocket.
 - Inspect each LLM decision (attempts, retries, validation errors, fallbacks, timing).
 - Run headless single games or batches for benchmarking.
-
----
-
-## Core principles
-
-These are enforced in code and should stay true as the project evolves:
-
-1. **Engine is authoritative**: only the rules engine mutates game state.
-2. **Determinism is mandatory**: given the same seed and action selections, the event stream must replay identically.
-3. **LLMs can only select legal actions**: each decision point includes an explicit `legal_actions` menu; no free-form actions.
-4. **Every state change emits an event**: there are no silent mutations.
-5. **UI is render-only**: it renders from snapshots/events; it does not implement rules.
-
-For development and change-management rules, see `AGENTS.md`.
-
----
-
-## Repo layout
-
-- `contracts/`: schemas + TS types + examples + board spec
-- `frontend/`: render-only UI (React/Vite)
-- `python/packages/engine`: deterministic Monopoly rules engine
-- `python/packages/arena`: OpenRouter orchestration + prompting + strict validation + retries/fallbacks
-- `python/packages/telemetry`: run folder management + writers + summary builder
-- `python/apps/api`: FastAPI + WebSocket server
-- `scripts/`: verification scripts
-- `runs/`: output artifacts (generated)
 
 ---
 
@@ -80,6 +54,56 @@ Inspector UI <----- reads decisions + prompt artifacts -----> Arena (LlmRunner)
 
 ---
 
+## Repo layout
+
+- `contracts/`: schemas + TS types + examples + board spec
+- `frontend/`: render-only UI (React/Vite)
+- `python/packages/engine`: deterministic Monopoly rules engine
+- `python/packages/arena`: OpenRouter orchestration + prompting + strict validation + retries/fallbacks
+- `python/packages/telemetry`: run folder management + writers + summary builder
+- `python/apps/api`: FastAPI + WebSocket server
+- `scripts/`: verification scripts
+- `runs/`: output artifacts (generated)
+
+---
+
+## How it works
+
+MonopolyBench is designed so runs are **replayable**, **inspectable**, and **comparable** across models. The rules engine is the source of truth, models can only choose from explicitly allowed actions, and every state change is recorded as an ordered event.
+
+### One run, end-to-end
+
+1. **Engine advances the game (authoritative + deterministic)**
+   - The engine is the only component that can mutate game state.
+   - Dice, movement, payments, card draws, etc. are resolved using seeded randomness.
+
+2. **When a player (LLM) must choose, the engine creates a `DecisionPoint`**
+   - Includes `decision_id`, `decision_type`, `player_id`
+   - Includes the full board state (player info, properties, past actions/messages/thoughts, etc.)
+   - Includes a complete `legal_actions` menu, where each action has a name + argument schema (models never invent moves; they pick from this list)
+
+3. **Arena prompts the model (OpenRouter tools) and enforces legality**
+   - The arena converts `legal_actions` into an OpenRouter tool schema and sends the decision context.
+   - The model must return **exactly one tool call** that matches a legal action and its schema.
+   - If output is invalid → **exactly one** corrective retry with validation errors.
+   - If still invalid → a **deterministic fallback** action is applied and logged.
+
+4. **Engine applies the chosen action and emits resulting events**
+   - The applied action (and args) is logged for replay.
+   - The resulting state changes are represented by events, which are the canonical replay surface.
+
+5. **API streams the run; UI renders only**
+   - The API streams snapshots/events over WebSocket.
+   - The frontend is render-only: it displays snapshots/events and does not implement rules or infer legality.
+
+6. **Telemetry writes artifacts for replay and inspection**
+   - Everything needed to debug and reproduce a run is written under `runs/<run_id>/`:
+     events, decisions (including retries/fallbacks), actions, per-turn snapshots, prompts, and summaries.
+
+For repo boundaries and “don’t break the benchmark” rules (determinism, contracts, logging), see `AGENTS.md`.
+
+---
+
 ## Quickstart
 
 ### Prerequisites
@@ -89,10 +113,8 @@ Inspector UI <----- reads decisions + prompt artifacts -----> Arena (LlmRunner)
 - OpenRouter API key
 
 ### 1) Configure environment
-Env files are loaded in this priority order (later overrides earlier; OS env wins):
+
 1. repo root `.env`
-2. `python/.env`
-3. `python/apps/api/.env`
 
 Minimal `.env` (repo root):
 ```bash
@@ -110,9 +132,6 @@ cd frontend
 yarn
 ```
 
-Notes:
-- This repo uses Yarn for the frontend. Avoid npm; `package-lock.json` is intentionally not tracked.
-
 Python (from repo root):
 ```bash
 cd python
@@ -120,6 +139,7 @@ uv sync --all-packages
 ```
 
 ### 3) Run verification (recommended before pushing)
+
 From repo root:
 ```powershell
 pwsh -File scripts/verify.ps1
@@ -129,10 +149,7 @@ On macOS/Linux:
 ./scripts/verify.sh
 ```
 
-Verification includes:
-- contract example validation
-- Python tests (engine + api + arena)
-- frontend build
+This will ensure that everything is running perfectly.
 
 ### 4) Run the backend
 ```bash
@@ -160,30 +177,6 @@ Open `http://localhost:5173`.
 ### Player configuration
 Default player configuration lives at:
 - `python/apps/api/src/monopoly_api/config/players.json`
-
-Rules:
-- Exactly **4** players are required for LLM runs.
-- `/run/start` may provide overrides, but overrides must match `player_id`s from the file.
-- Per-player `reasoning.effort` (one of `low|medium|high`) is supported and passed through to OpenRouter.
-
----
-
-## How runs work
-
-At runtime, the system loops like this:
-
-1. The engine advances deterministically (dice -> movement -> forced payments -> cards).
-2. When a decision is needed, the engine emits a **DecisionPoint** containing:
-   - `decision_id`, `decision_type`, `player_id`
-   - a full **StateSnapshot**
-   - an explicit `legal_actions` list with argument schemas
-3. The arena builds an OpenRouter tool schema from `legal_actions` and asks the model to choose.
-4. The model output is validated strictly:
-   - invalid tool call / invalid schema / illegal action -> **one retry**
-   - still invalid -> deterministic fallback action (recorded)
-5. The engine applies the action and emits events (including LLM meta events).
-6. The API streams events + snapshots to the UI over WebSocket.
-7. Telemetry writes artifacts to `runs/<run_id>/` for later inspection and replay.
 
 ---
 
