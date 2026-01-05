@@ -1,29 +1,26 @@
-# Monopoly LLM Benchmark
+# MonopolyBench
 
-A deterministic Monopoly rules engine plus a benchmark harness and a real-time UI for running **multi-agent LLM Monopoly matches** under strict legality constraints.
+A deterministic Monopoly engine where various LLMs compete head-to-head in real-time, with a custom UI for spectators.
 
-This repo is built for three things at once:
-1. **A polished live demo** (board + tokens + event feed + inspector).
-2. **A reproducible benchmark** (same seed + same actions -> identical replay).
-3. **Research-grade artifacts** (events, actions, decisions, prompts, snapshots, summary).
+This repository is meant to serve three purposes:
+1. **Live demo** - A real-time UI for watching LLMs play Monopoly.
+2. **Benchmark** - A reproducible benchmark for testing LLMs on Monopoly.
+3. **Research** - A research-grade dataset for studying LLM behavior in Monopoly.
 
----
+![MonopolyBench](https://github.com/KushagraBharti/MonopolyBench/main/MonopolyBench.png?raw=true)
 
-## Table of contents
-- [What you can do](#what-you-can-do)
-- [Core principles](#core-principles)
-- [Architecture (one diagram)](#architecture-one-diagram)
-- [Quickstart](#quickstart)
-- [Configuration](#configuration)
-- [How runs work](#how-runs-work)
-- [Run artifacts (dataset format)](#run-artifacts-dataset-format)
-- [Replay and determinism](#replay-and-determinism)
-- [Contracts (schemas and types)](#contracts-schemas-and-types)
-- [Testing, linting, typecheck](#testing-linting-typecheck)
-- [Troubleshooting](#troubleshooting)
-- [Repo layout](#repo-layout)
-- [Contributing](#contributing)
-- [License](#license)
+The goal is to test LLMs on 
+1) **Raw Monopoly Performance** - Which LLM is the best at playing Monopoly?
+2) **Long-Horizon Planning and Execution** - Are LLMs able to plan and execute long-term strategies?
+3) **Negotiation, Bluffing, and Deception** - Are LLMs able to negotiate, bluff, and deceive?
+4) **Uncovering LLM Biases** - Using the Monopoly harness to uncover biases in LLMs. Using biases from Thinking, Fast, and Slow by Daniel Kahneman
+
+I plan to publish a paper in correlation to this project as well.
+
+Future Implementations: 
+1. **TrueSkill** - A TrueSkill ranking system for LLMs playing Monopoly.
+2. **Multiplayer** - A multiplayer version of Monopoly where humans can play against LLMs.
+3. **Custom Rules** - A custom ruleset for Monopoly that is more challenging for LLMs.
 
 ---
 
@@ -32,7 +29,6 @@ This repo is built for three things at once:
 - Start a 4-player game where each player is an LLM (via OpenRouter).
 - Watch the game live in a custom React UI fed by a FastAPI WebSocket.
 - Inspect each LLM decision (attempts, retries, validation errors, fallbacks, timing).
-- Persist every run to disk in a replayable, analysis-friendly format.
 - Run headless single games or batches for benchmarking.
 
 ---
@@ -46,9 +42,21 @@ These are enforced in code and should stay true as the project evolves:
 3. **LLMs can only select legal actions**: each decision point includes an explicit `legal_actions` menu; no free-form actions.
 4. **Every state change emits an event**: there are no silent mutations.
 5. **UI is render-only**: it renders from snapshots/events; it does not implement rules.
-6. **OpenRouter only**: no direct vendor APIs.
 
 For development and change-management rules, see `AGENTS.md`.
+
+---
+
+## Repo layout
+
+- `contracts/`: schemas + TS types + examples + board spec
+- `frontend/`: render-only UI (React/Vite)
+- `python/packages/engine`: deterministic Monopoly rules engine
+- `python/packages/arena`: OpenRouter orchestration + prompting + strict validation + retries/fallbacks
+- `python/packages/telemetry`: run folder management + writers + summary builder
+- `python/apps/api`: FastAPI + WebSocket server
+- `scripts/`: verification scripts
+- `runs/`: output artifacts (generated)
 
 ---
 
@@ -69,19 +77,6 @@ Inspector UI <----- reads decisions + prompt artifacts -----> Arena (LlmRunner)
                                                                 v
                                                 Telemetry writer (runs/<run_id>/)
 ```
-
----
-
-## Repo layout
-
-- `contracts/`: schemas + TS types + examples + board spec
-- `frontend/`: render-only UI (React/Vite)
-- `python/packages/engine`: deterministic Monopoly rules engine
-- `python/packages/arena`: OpenRouter orchestration + prompting + strict validation + retries/fallbacks
-- `python/packages/telemetry`: run folder management + writers + summary builder
-- `python/apps/api`: FastAPI + WebSocket server
-- `scripts/`: verification scripts
-- `runs/`: output artifacts (generated)
 
 ---
 
@@ -191,58 +186,6 @@ At runtime, the system loops like this:
 7. Telemetry writes artifacts to `runs/<run_id>/` for later inspection and replay.
 
 ---
-
-## Repo layout
-
-- `contracts/`: schemas + TS types + examples + board spec
-- `frontend/`: render-only UI (React/Vite)
-- `python/packages/engine`: deterministic Monopoly rules engine
-- `python/packages/arena`: OpenRouter orchestration + prompting + strict validation + retries/fallbacks
-- `python/packages/telemetry`: run folder management + writers + summary builder
-- `python/apps/api`: FastAPI + WebSocket server
-- `scripts/`: verification scripts
-- `runs/`: output artifacts (generated)
-
-## Contracts (schemas and types)
-
-The repo maintains a shared contract boundary:
-- JSON Schemas: `contracts/schemas/*.schema.json`
-- TypeScript types: `contracts/ts/*.ts`
-- Example payloads: `contracts/examples/*`
-- Board spec: `contracts/data/board.json`
-
-Validation entrypoint:
-```bash
-node contracts/validate-contracts.mjs
-```
-
-If you change any protocol shape, update:
-1. JSON schema(s)
-2. TS types
-3. examples
-4. validation + tests
-
----
-
-## Testing, linting, typecheck
-
-Canonical repo-wide check:
-- `pwsh -File scripts/verify.ps1`
-
-Per-package tests:
-```bash
-cd python/packages/engine && uv run pytest
-cd python/packages/arena && uv run pytest
-cd python/apps/api && uv run pytest
-cd python/packages/telemetry && uv run pytest
-```
-
-Lint / typecheck (preferred):
-```bash
-cd python
-uv run ruff check .
-uv run mypy .
-```
 
 ## License
 
