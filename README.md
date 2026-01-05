@@ -7,7 +7,6 @@ This repository is meant to serve three purposes:
 2. **Benchmark** - A reproducible benchmark for testing LLMs on Monopoly.
 3. **Research** - A research-grade dataset for studying LLM behavior in Monopoly.
 
-![MonopolyBench](https://github.com/KushagraBharti/MonopolyBench/main/MonopolyBench.png?raw=true)
 ![MonopolyBench](MonopolyBench.png)
 
 The goal is to test LLMs on 
