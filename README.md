@@ -8,6 +8,7 @@ This repository is meant to serve three purposes:
 3. **Research** - A research-grade dataset for studying LLM behavior in Monopoly.
 
 ![MonopolyBench](MonopolyBench.png)
+[Video Demo](https://youtu.be/44xiBJf1nDk)
 
 The goal is to test LLMs on 
 1) **Raw Monopoly Performance** - Which LLM is the best at playing Monopoly?
